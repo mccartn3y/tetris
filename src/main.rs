@@ -1,6 +1,5 @@
-use crossterm::event::{self, read, Event, KeyEvent};
-use crossterm::terminal::enable_raw_mode;
-use std::io;
+use crossterm::event::{poll, read, Event, KeyCode, KeyEvent};
+use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
@@ -24,40 +23,55 @@ fn main() {
     // process it; when there is a message fromt the second channel
     // we shall move on.
 
-    let (sender, receiver) = mpsc::channel();
-    let sender_1 = sender.clone();
-    enable_raw_mode();
+    let (timeout_sender, timeout_receiver) = mpsc::channel();
+    let (char_sender, char_receiver) = mpsc::channel();
 
-    let timeout_duration = 1;
+    let timeout_duration = 10;
     // set up timer to accept input for
     thread::spawn(move || {
         thread::sleep(Duration::from_secs(timeout_duration));
-        sender.send(ReturnEvent::TimerComplete).unwrap();
+        timeout_sender.send(true).unwrap();
+        println!("Timer complete!");
     });
     // set up thread for getting cli input
     thread::spawn(move || {
-        let mut input = String::new();
+        enable_raw_mode();
+        let _guard = ThreadGuard(Some(|| {
+            // Custom code to run when the thread ends
+            println!("{:?}", disable_raw_mode());
+            println!("Disabled raw mode");
+        }));
         loop {
-            // `read()` blocks until an `Event` is available
-            match read().unwrap() {
-                Event::Key(event) => sender_1.send(ReturnEvent::KeyPressEvent(event)).unwrap(),
-                other => (),
+            match timeout_receiver.try_recv() {
+                Ok(_) => {
+                    disable_raw_mode();
+                    return;
+                }
+                Err(_) => {
+                    if poll(Duration::from_millis(100)).unwrap() {
+                        // It's guaranteed that read() won't block if `poll` returns `Ok(true)`
+                        let event = read().unwrap();
+
+                        if event == Event::Key(KeyCode::Esc.into()) {
+                            return;
+                        }
+                        char_sender.send(event);
+                    }
+                }
             }
         }
     });
-    for recieved in receiver {
-        println!("Timer timed out!");
-        match recieved {
-            ReturnEvent::TimerComplete => {
-                println!("timer timed out.");
-                drop(sender_1)
-            }
-            ReturnEvent::KeyPressEvent(event) => println!("{:?}", event),
-        }
+    for recieved in char_receiver {
+        println!("{:?}", recieved);
     }
 }
 
-enum ReturnEvent {
-    TimerComplete,
-    KeyPressEvent(KeyEvent),
+struct ThreadGuard<F: FnOnce()>(Option<F>);
+
+impl<F: FnOnce()> Drop for ThreadGuard<F> {
+    fn drop(&mut self) {
+        if let Some(f) = self.0.take() {
+            f();
+        }
+    }
 }
