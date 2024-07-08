@@ -1,7 +1,7 @@
-use crossterm::event::{poll, read, Event, KeyCode, KeyEvent};
+use crossterm::event::{poll, read, Event, KeyCode};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use std::sync::mpsc;
-use std::thread::{self, sleep_ms};
+use std::thread;
 use std::time::Duration;
 
 fn main() {
@@ -30,31 +30,37 @@ fn main() {
     let timeout_duration = 10;
     // set up timer to accept input for
     thread::spawn(move || {
+        // TODO: Convert this to use a shared variable
         thread::sleep(Duration::from_secs(timeout_duration));
-        timeout_sender.send(true).unwrap();
-        timeout_sender_1.send(true).unwrap();
+        timeout_sender
+            .send(true)
+            .expect("Failed to send timer finished signal to input logger.");
+        timeout_sender_1
+            .send(true)
+            .expect("Failed to send timer finished signal to main thread.");
         println!("Timer complete!");
     });
     // set up thread for getting cli input
     thread::spawn(move || {
-        enable_raw_mode();
+        enable_raw_mode().expect("Failed to enable raw mode required to display correctly.");
         let _guard = ThreadGuard(Some(|| {
             // Custom code to run when the thread ends
-            println!("{:?}", disable_raw_mode());
-            println!("Disabled raw mode");
+            disable_raw_mode()
+                .expect("Failed to disable raw mode. Restart terminal to resume normal behaviour.");
         }));
         loop {
             match timeout_receiver.try_recv() {
                 Ok(_) => return,
                 Err(_) => {
-                    if poll(Duration::from_millis(100)).unwrap() {
-                        // It's guaranteed that read() won't block if `poll` returns `Ok(true)`
-                        let event = read().unwrap();
+                    if poll(Duration::from_millis(100)).expect("Poll of CLI buffer failed.") {
+                        let event = read().expect("Read of CLI buffer failed.");
 
                         if event == Event::Key(KeyCode::Esc.into()) {
                             return;
                         }
-                        char_sender.send(event);
+                        if let Err(_) = char_sender.send(event) {
+                            println!("Failed to send key to main thread.");
+                        }
                     }
                 }
             }
