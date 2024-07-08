@@ -53,13 +53,16 @@ fn main() {
                 Ok(_) => return,
                 Err(_) => {
                     if poll(Duration::from_millis(100)).expect("Poll of CLI buffer failed.") {
-                        let event = read().expect("Read of CLI buffer failed.");
-
-                        if event == Event::Key(KeyCode::Esc.into()) {
-                            return;
-                        }
-                        if let Err(_) = char_sender.send(event) {
-                            println!("Failed to send key to main thread.");
+                        match read().expect("Read of CLI buffer failed.") {
+                            Event::Key(key_event) => match key_event.code {
+                                KeyCode::Char(_) => {
+                                    if let Err(_) = char_sender.send(key_event) {
+                                        println!("Failed to send key to main thread.");
+                                    }
+                                }
+                                _other => return,
+                            },
+                            _other => return,
                         }
                     }
                 }
