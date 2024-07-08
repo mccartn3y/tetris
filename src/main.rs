@@ -1,7 +1,7 @@
 use crossterm::event::{poll, read, Event, KeyCode, KeyEvent};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use std::sync::mpsc;
-use std::thread;
+use std::thread::{self, sleep_ms};
 use std::time::Duration;
 
 fn main() {
@@ -24,6 +24,7 @@ fn main() {
     // we shall move on.
 
     let (timeout_sender, timeout_receiver) = mpsc::channel();
+    let (timeout_sender_1, timeout_receiver_1) = mpsc::channel();
     let (char_sender, char_receiver) = mpsc::channel();
 
     let timeout_duration = 10;
@@ -31,6 +32,7 @@ fn main() {
     thread::spawn(move || {
         thread::sleep(Duration::from_secs(timeout_duration));
         timeout_sender.send(true).unwrap();
+        timeout_sender_1.send(true).unwrap();
         println!("Timer complete!");
     });
     // set up thread for getting cli input
@@ -43,10 +45,7 @@ fn main() {
         }));
         loop {
             match timeout_receiver.try_recv() {
-                Ok(_) => {
-                    disable_raw_mode();
-                    return;
-                }
+                Ok(_) => return,
                 Err(_) => {
                     if poll(Duration::from_millis(100)).unwrap() {
                         // It's guaranteed that read() won't block if `poll` returns `Ok(true)`
@@ -62,7 +61,11 @@ fn main() {
         }
     });
     for recieved in char_receiver {
+        if let Ok(_) = timeout_receiver_1.try_recv() {
+            break;
+        }
         println!("{:?}", recieved);
+        thread::sleep(Duration::from_secs(1));
     }
 }
 
