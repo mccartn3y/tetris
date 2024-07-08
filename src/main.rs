@@ -42,12 +42,7 @@ fn main() {
     });
     // set up thread for getting cli input
     thread::spawn(move || {
-        enable_raw_mode().expect("Failed to enable raw mode required to display correctly.");
-        let _guard = ThreadGuard(Some(|| {
-            // Custom code to run when the thread ends
-            disable_raw_mode()
-                .expect("Failed to disable raw mode. Restart terminal to resume normal behaviour.");
-        }));
+        let _guard = ScopedRawMode::new();
         loop {
             match timeout_receiver.try_recv() {
                 Ok(_) => return,
@@ -78,12 +73,20 @@ fn main() {
     }
 }
 
-struct ThreadGuard<F: FnOnce()>(Option<F>);
+// Struct that runs enable_raw_mode on start and disables when it is
+// dropped so that it is only active in the scope of the instantiation
+struct ScopedRawMode;
 
-impl<F: FnOnce()> Drop for ThreadGuard<F> {
+impl ScopedRawMode {
+    fn new() -> ScopedRawMode {
+        enable_raw_mode().expect("Failed to enable raw mode required to display correctly.");
+        ScopedRawMode
+    }
+}
+
+impl Drop for ScopedRawMode {
     fn drop(&mut self) {
-        if let Some(f) = self.0.take() {
-            f();
-        }
+        disable_raw_mode()
+            .expect("Failed to disable raw mode. Restart terminal to resume normal behaviour.");
     }
 }
