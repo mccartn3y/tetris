@@ -4,6 +4,8 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
+use tetris::turn_timer::turn_timer::{Notifier, TimerStatus, TurnTimer, TurnTimerSubscriber};
+
 fn main() {
     // This code will create a UI for the tetris game.
     // The complexity of a tetis UI comes from the
@@ -23,30 +25,22 @@ fn main() {
     // process it; when there is a message fromt the second channel
     // we shall move on.
 
-    let (timeout_sender, timeout_receiver) = mpsc::channel();
-    let (timeout_sender_1, timeout_receiver_1) = mpsc::channel();
-    let (char_sender, char_receiver) = mpsc::channel();
+    let mut turn_timer = TurnTimer::new(3);
+    let mut turn_timer_subscriber = TurnTimerSubscriber::new();
+    let mut turn_timer_subscriber_1 = TurnTimerSubscriber::new();
+    turn_timer.add_subscriber(&mut turn_timer_subscriber);
+    turn_timer.add_subscriber(&mut turn_timer_subscriber_1);
 
-    let timeout_duration = 10;
-    // set up timer to accept input for
-    thread::spawn(move || {
-        // TODO: Convert this to use a shared variable
-        thread::sleep(Duration::from_secs(timeout_duration));
-        timeout_sender
-            .send(true)
-            .expect("Failed to send timer finished signal to input logger.");
-        timeout_sender_1
-            .send(true)
-            .expect("Failed to send timer finished signal to main thread.");
-        println!("Timer complete!");
-    });
+    turn_timer.run_timer();
+
+    let (char_sender, char_receiver) = mpsc::channel();
     // set up thread for getting cli input
     thread::spawn(move || {
         let _guard = ScopedRawMode::new();
         loop {
-            match timeout_receiver.try_recv() {
-                Ok(_) => return,
-                Err(_) => {
+            match turn_timer_subscriber.get_timer_status() {
+                TimerStatus::TimerComplete => return,
+                TimerStatus::TimerNotComplete => {
                     if poll(Duration::from_millis(100)).expect("Poll of CLI buffer failed.") {
                         match read().expect("Read of CLI buffer failed.") {
                             Event::Key(key_event) => match key_event.code {
@@ -65,7 +59,7 @@ fn main() {
         }
     });
     for recieved in char_receiver {
-        if let Ok(_) = timeout_receiver_1.try_recv() {
+        if let TimerStatus::TimerComplete = turn_timer_subscriber_1.get_timer_status() {
             break;
         }
         println!("{:?}", recieved);
