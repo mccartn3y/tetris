@@ -66,6 +66,7 @@ mod tests {
         notifier.add_subscriber(&mut subscriber);
 
         assert_eq!(notifier.subscribers.len(), 1);
+        assert!(subscriber.subscription.is_some());
 
         notifier.notify(&"notified!".to_string());
         subscriber.update();
