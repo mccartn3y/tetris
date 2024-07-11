@@ -1,10 +1,8 @@
-use crossterm::event::{poll, read, Event, KeyCode};
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
-
 use tetris::turn_timer::turn_timer::{Notifier, TimerStatus, TurnTimer, TurnTimerSubscriber};
+use tetris::ui::timed_user_input_thread;
 
 fn main() {
     // This code will create a UI for the tetris game.
@@ -34,53 +32,14 @@ fn main() {
     turn_timer.run_timer();
 
     let (char_sender, char_receiver) = mpsc::channel();
-    // set up thread for getting cli input
-    thread::spawn(move || {
-        let _guard = ScopedRawMode::new();
-        loop {
-            match turn_timer_subscriber.get_timer_status() {
-                TimerStatus::TimerComplete => return,
-                TimerStatus::TimerNotComplete => {
-                    if poll(Duration::from_millis(100)).expect("Poll of CLI buffer failed.") {
-                        match read().expect("Read of CLI buffer failed.") {
-                            Event::Key(key_event) => match key_event.code {
-                                KeyCode::Char(_) => {
-                                    if let Err(_) = char_sender.send(key_event) {
-                                        println!("Failed to send key to main thread.");
-                                    }
-                                }
-                                _other => return,
-                            },
-                            _other => return,
-                        }
-                    }
-                }
-            }
-        }
-    });
+
+    timed_user_input_thread(turn_timer_subscriber, char_sender);
+
     for recieved in char_receiver {
         if let TimerStatus::TimerComplete = turn_timer_subscriber_1.get_timer_status() {
             break;
         }
         println!("{:?}", recieved);
         thread::sleep(Duration::from_secs(1));
-    }
-}
-
-// Struct that runs enable_raw_mode on start and disables when it is
-// dropped so that it is only active in the scope of the instantiation
-struct ScopedRawMode;
-
-impl ScopedRawMode {
-    fn new() -> ScopedRawMode {
-        enable_raw_mode().expect("Failed to enable raw mode required to display correctly.");
-        ScopedRawMode
-    }
-}
-
-impl Drop for ScopedRawMode {
-    fn drop(&mut self) {
-        disable_raw_mode()
-            .expect("Failed to disable raw mode. Restart terminal to resume normal behaviour.");
     }
 }
