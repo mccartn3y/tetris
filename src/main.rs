@@ -1,8 +1,10 @@
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
-use tetris::turn_timer::turn_timer::{Notifier, TimerStatus, TurnTimer, TurnTimerSubscriber};
-use tetris::ui::timed_user_input_thread;
+use tetris::turn_timer::turn_timer::{
+    Notifier, TimerStatus, TurnTimer, TurnTimerSubscriber, TurnTimerSubscriberTrait,
+};
+use tetris::ui::{timed_user_input, CliCommandCollector, CommandCollector};
 
 fn main() {
     // This code will create a UI for the tetris game.
@@ -23,7 +25,7 @@ fn main() {
     // process it; when there is a message fromt the second channel
     // we shall move on.
 
-    let mut turn_timer = TurnTimer::new(3);
+    let mut turn_timer = TurnTimer::new(3_000);
     let mut turn_timer_subscriber = TurnTimerSubscriber::new();
     let mut turn_timer_subscriber_1 = TurnTimerSubscriber::new();
     turn_timer.add_subscriber(&mut turn_timer_subscriber);
@@ -31,9 +33,11 @@ fn main() {
 
     turn_timer.run_timer();
 
-    let (char_sender, char_receiver) = mpsc::channel();
-
-    timed_user_input_thread(turn_timer_subscriber, char_sender);
+    let (command_dispatcher, char_receiver) = mpsc::channel();
+    timed_user_input::<CliCommandCollector, TurnTimerSubscriber>(
+        turn_timer_subscriber,
+        command_dispatcher,
+    );
 
     for recieved in char_receiver {
         if let TimerStatus::TimerComplete = turn_timer_subscriber_1.get_timer_status() {

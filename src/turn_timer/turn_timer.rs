@@ -37,6 +37,9 @@ impl Notifier<TimerStatus> for TurnTimer {
         return &mut self.subscribers;
     }
 }
+pub trait TurnTimerSubscriberTrait {
+    fn get_timer_status(&mut self) -> TimerStatus;
+}
 pub struct TurnTimerSubscriber {
     timer_status: TimerStatus,
     subscription: Option<mpsc::Receiver<TimerStatus>>,
@@ -48,7 +51,9 @@ impl TurnTimerSubscriber {
             subscription: None,
         }
     }
-    pub fn get_timer_status(&mut self) -> TimerStatus {
+}
+impl TurnTimerSubscriberTrait for TurnTimerSubscriber {
+    fn get_timer_status(&mut self) -> TimerStatus {
         match self.timer_status {
             TimerStatus::TimerComplete => return TimerStatus::TimerComplete,
             TimerStatus::TimerNotComplete => {
