@@ -147,7 +147,7 @@ mod tests {
     }
 
     struct TestCommandCollector {
-        outputs: Vec<MoveCommand>,
+        outputs: Vec<Result<Option<MoveCommand>, ()>>,
     }
     impl CommandCollector for TestCommandCollector {
         fn new() -> Self {
@@ -155,10 +155,34 @@ mod tests {
         }
         fn get_command(&mut self) -> Result<Option<MoveCommand>, ()> {
             match self.outputs.pop() {
-                Some(val) => Ok(Some(val)),
+                Some(val) => val,
                 None => Ok(None),
             }
         }
+    }
+    #[test]
+    fn test_loop_does_exit_on_invalid_input() {
+        let mut test_turn_timer = TestTurnTimerSubscriber {
+            outputs: vec![
+                TimerStatus::TimerNotComplete,
+                TimerStatus::TimerNotComplete,
+                TimerStatus::TimerNotComplete,
+            ],
+        };
+        let (command_dispatcher, command_reciever) = mpsc::channel();
+        let mut command_collector = TestCommandCollector::new();
+        command_collector.outputs.push(Ok(Some(MoveCommand::Down)));
+        command_collector.outputs.push(Err(()));
+
+        run_user_input_loop::<TestCommandCollector, TestTurnTimerSubscriber>(
+            &mut test_turn_timer,
+            command_dispatcher,
+            command_collector,
+        );
+        assert_eq!(
+            test_turn_timer.get_timer_status(),
+            TimerStatus::TimerNotComplete
+        );
     }
     #[test]
     fn test_loop_does_not_exit_on_valid_input() {
@@ -169,18 +193,11 @@ mod tests {
                 TimerStatus::TimerNotComplete,
                 TimerStatus::TimerNotComplete,
                 TimerStatus::TimerNotComplete,
-                TimerStatus::TimerNotComplete,
-                TimerStatus::TimerNotComplete,
-                TimerStatus::TimerNotComplete,
-                TimerStatus::TimerNotComplete,
-                TimerStatus::TimerNotComplete,
             ],
         };
         let (command_dispatcher, command_reciever) = mpsc::channel();
         let mut command_collector = TestCommandCollector::new();
-        command_collector.outputs.push(MoveCommand::Down);
-        command_collector.outputs.push(MoveCommand::Down);
-        command_collector.outputs.push(MoveCommand::Down);
+        command_collector.outputs.push(Ok(Some(MoveCommand::Down)));
 
         run_user_input_loop::<TestCommandCollector, TestTurnTimerSubscriber>(
             &mut test_turn_timer,
