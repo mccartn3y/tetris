@@ -77,28 +77,26 @@ mod tests {
         const SET_UNDERLINED: [u8; 4] = [27, 91, 52, 109];
         const SET_NOT_UNDERLINED: [u8; 5] = [27, 91, 50, 52, 109];
     }
+
+    #[cfg(unix)]
     #[test]
     fn test_cli_view_writes_board() {
         let board_row = "|          |";
+        let board_row_bytes: [u8; 12] = board_row.as_bytes().try_into().unwrap();
 
-        // Construct expected buffer string from commands
-        let mut expected_string =
-            String::from_utf8(CommandMapping::MOVE_TO_START.to_vec()).unwrap();
-        expected_string.push_str(&board_row);
-        expected_string
-            .push_str(&String::from_utf8(CommandMapping::MOVE_TO_NEXT_LINE.to_vec()).unwrap());
-        expected_string
-            .push_str(&String::from_utf8(CommandMapping::SET_UNDERLINED.to_vec()).unwrap());
-        expected_string.push_str(&board_row);
-        expected_string
-            .push_str(&String::from_utf8(CommandMapping::SET_NOT_UNDERLINED.to_vec()).unwrap());
+        // Construct expected buffer from commands
+        let expected_buffer: Vec<u8> = CommandMapping::MOVE_TO_START
+            .into_iter()
+            .chain(board_row_bytes)
+            .chain(CommandMapping::MOVE_TO_NEXT_LINE)
+            .chain(CommandMapping::SET_UNDERLINED)
+            .chain(board_row_bytes)
+            .chain(CommandMapping::SET_NOT_UNDERLINED)
+            .collect();
 
         let cli_string = vec![String::from(board_row); 2];
         let mut buf_writer = TestWriter { buffer: Vec::new() };
         CliView::print_board(&mut buf_writer, cli_string);
-        assert_eq!(
-            String::from_utf8(buf_writer.buffer).unwrap(),
-            expected_string
-        );
+        assert_eq!(buf_writer.buffer, expected_buffer);
     }
 }
