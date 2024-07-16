@@ -23,7 +23,8 @@ impl Drop for ScopedRawMode {
             .expect("Failed to disable raw mode. Restart terminal to resume normal behaviour.");
     }
 }
-
+// TODO: Move the run_user_input_loop fn into a class that implements an interface so
+// we don't have to pass in all of these dependencies to this fn.
 pub fn timed_user_input<'a, T: CommandCollector, U: TurnTimerSubscriberTrait + Send + 'a>(
     mut turn_timer_subscriber: U,
     command_dispatcher: mpsc::Sender<MoveCommand>,
