@@ -12,6 +12,21 @@ impl TetrisBoard {
         }
     }
 }
+struct Coord {
+    col: u16,
+    row: u16,
+}
+enum Orientation {
+    Up,
+    Right,
+    Down,
+    Left,
+}
+struct TetrisPiece {
+    shape: Vec<Coord>,
+    centre: Coord,
+    orientation: Orientation,
+}
 struct CliView;
 impl CliView {
     fn generate_board_string_view(tetris_board: TetrisBoard) -> Vec<String> {
@@ -19,7 +34,7 @@ impl CliView {
         for line in tetris_board.board {
             let mut line_chars: Vec<u8> = vec!['|' as u8];
             line_chars.extend(line.iter().map(|x| match x {
-                true => 'x' as u8,
+                true => 'o' as u8,
                 false => ' ' as u8,
             }));
             line_chars.push('|' as u8);
@@ -41,6 +56,17 @@ impl CliView {
 
         writer.flush()?;
 
+        return Ok(());
+    }
+    fn draw_piece<W: Write>(writer: &mut W, piece_coordinates: Vec<Coord>) -> std::io::Result<()> {
+        for coord in piece_coordinates {
+            queue!(
+                writer,
+                cursor::MoveTo(coord.col + 1, coord.row),
+                style::Print("x")
+            )?;
+        }
+        writer.flush()?;
         return Ok(());
     }
 }
@@ -76,6 +102,16 @@ mod tests {
         const MOVE_TO_NEXT_LINE: [u8; 4] = [27, 91, 49, 69];
         const SET_UNDERLINED: [u8; 4] = [27, 91, 52, 109];
         const SET_NOT_UNDERLINED: [u8; 5] = [27, 91, 50, 52, 109];
+        fn MOVE_TO(col: u8, row: u8) -> [u8; 6] {
+            return [
+                Self::MOVE_TO_START[0],
+                Self::MOVE_TO_START[1],
+                Self::MOVE_TO_START[2] + row,
+                Self::MOVE_TO_START[3],
+                Self::MOVE_TO_START[4] + col,
+                Self::MOVE_TO_START[5],
+            ];
+        }
     }
 
     #[cfg(unix)]
@@ -97,6 +133,32 @@ mod tests {
         let cli_string = vec![String::from(board_row); 2];
         let mut buf_writer = TestWriter { buffer: Vec::new() };
         CliView::print_board(&mut buf_writer, cli_string);
+        assert_eq!(buf_writer.buffer, expected_buffer);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_cli_view_writes_piece() {
+        // Construct expected buffer from commands
+        let expected_buffer: Vec<u8> = CommandMapping::MOVE_TO(2, 1)
+            .into_iter()
+            .chain(['x' as u8])
+            .chain(CommandMapping::MOVE_TO(3, 1))
+            .chain(['x' as u8])
+            .chain(CommandMapping::MOVE_TO(3, 2))
+            .chain(['x' as u8])
+            .chain(CommandMapping::MOVE_TO(4, 2))
+            .chain(['x' as u8])
+            .collect();
+
+        let mut buf_writer = TestWriter { buffer: Vec::new() };
+        let piece_coords = vec![
+            Coord { col: 1, row: 1 },
+            Coord { col: 2, row: 1 },
+            Coord { col: 2, row: 2 },
+            Coord { col: 3, row: 2 },
+        ];
+        CliView::draw_piece(&mut buf_writer, piece_coords);
         assert_eq!(buf_writer.buffer, expected_buffer);
     }
 }
