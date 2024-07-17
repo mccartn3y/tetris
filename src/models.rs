@@ -1,6 +1,7 @@
 use crossterm::{cursor, execute, queue, style, Command};
 use std::io;
 use std::io::Write;
+use std::slice::Iter;
 struct TetrisBoard {
     board: Vec<Vec<bool>>,
 }
@@ -12,6 +13,77 @@ impl TetrisBoard {
         }
     }
 }
+#[derive(Debug)]
+enum PieceShape {
+    Square,
+    Bar,
+    Z,
+    FlippedZ,
+    L,
+    FlippedL,
+    T,
+}
+impl PieceShape {
+    fn shape(&self) -> Vec<Coord> {
+        match *self {
+            PieceShape::Square => vec![
+                Coord { col: 0, row: 0 },
+                Coord { col: 0, row: 1 },
+                Coord { col: 1, row: 1 },
+                Coord { col: 1, row: 0 },
+            ],
+            PieceShape::Bar => vec![
+                Coord { col: 0, row: 0 },
+                Coord { col: 1, row: 0 },
+                Coord { col: 2, row: 0 },
+                Coord { col: 3, row: 0 },
+            ],
+            PieceShape::Z => vec![
+                Coord { col: 0, row: 0 },
+                Coord { col: 1, row: 0 },
+                Coord { col: 1, row: 1 },
+                Coord { col: 2, row: 1 },
+            ],
+            PieceShape::FlippedZ => vec![
+                Coord { col: 0, row: 1 },
+                Coord { col: 1, row: 0 },
+                Coord { col: 1, row: 1 },
+                Coord { col: 2, row: 0 },
+            ],
+            PieceShape::L => vec![
+                Coord { col: 0, row: 1 },
+                Coord { col: 1, row: 1 },
+                Coord { col: 2, row: 1 },
+                Coord { col: 2, row: 0 },
+            ],
+            PieceShape::FlippedL => vec![
+                Coord { col: 0, row: 0 },
+                Coord { col: 0, row: 1 },
+                Coord { col: 1, row: 1 },
+                Coord { col: 2, row: 1 },
+            ],
+            PieceShape::T => vec![
+                Coord { col: 0, row: 1 },
+                Coord { col: 1, row: 1 },
+                Coord { col: 1, row: 0 },
+                Coord { col: 2, row: 1 },
+            ],
+        }
+    }
+    pub fn iterator() -> Iter<'static, PieceShape> {
+        static PIECE_SHAPES: [PieceShape; 7] = [
+            PieceShape::Square,
+            PieceShape::Bar,
+            PieceShape::Z,
+            PieceShape::FlippedZ,
+            PieceShape::L,
+            PieceShape::FlippedL,
+            PieceShape::T,
+        ];
+        PIECE_SHAPES.iter()
+    }
+}
+#[derive(Debug)]
 struct Coord {
     col: u16,
     row: u16,
@@ -26,6 +98,15 @@ struct TetrisPiece {
     shape: Vec<Coord>,
     centre: Coord,
     orientation: Orientation,
+}
+impl TetrisPiece {
+    fn new(piece_shape: &PieceShape) -> Self {
+        Self {
+            shape: piece_shape.shape(),
+            centre: Coord { col: 4, row: 2 },
+            orientation: Orientation::Up,
+        }
+    }
 }
 struct CliView;
 impl CliView {
@@ -84,6 +165,22 @@ mod tests {
         }
         fn flush(&mut self) -> io::Result<()> {
             Ok(())
+        }
+    }
+
+    #[test]
+    fn test_piece_creation_matches_piece() {
+        for piece_shape in PieceShape::iterator() {
+            let tetris_piece = TetrisPiece::new(piece_shape);
+
+            for i in (0..piece_shape.shape().len()) {
+                assert_eq!(tetris_piece.shape[i].col, piece_shape.shape()[i].col);
+                assert_eq!(tetris_piece.shape[i].row, piece_shape.shape()[i].row);
+            }
+            match tetris_piece.orientation {
+                Orientation::Up => (),
+                _other => assert!(false),
+            }
         }
     }
 
