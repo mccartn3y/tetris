@@ -130,7 +130,7 @@ impl TetrisPiece {
         return coordinates;
     }
 }
-struct CliView;
+pub struct CliView;
 impl CliView {
     fn generate_board_string_view(tetris_board: &TetrisBoard) -> Vec<String> {
         let mut view_lines: Vec<String> = Vec::with_capacity(tetris_board.board.len());
@@ -172,7 +172,7 @@ impl CliView {
         writer.flush()?;
         return Ok(());
     }
-    fn draw_piece_and_board(piece: &TetrisPiece, board: &TetrisBoard) {
+    pub fn draw_piece_and_board(piece: &TetrisPiece, board: &TetrisBoard) {
         let mut writer = io::stdout();
         let board_string = Self::generate_board_string_view(board);
         Self::draw_board(&mut writer, board_string);

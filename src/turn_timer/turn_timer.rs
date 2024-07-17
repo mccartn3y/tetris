@@ -65,10 +65,13 @@ impl TurnTimerSubscriberTrait for TurnTimerSubscriber {
 }
 impl Subscriber<TimerStatus> for TurnTimerSubscriber {
     fn update(&mut self) {
-        if let Some(subscription) = &self.subscription {
-            if let Ok(TimerStatus::TimerComplete) = subscription.try_recv() {
-                self.timer_status = TimerStatus::TimerComplete;
+        match &self.subscription {
+            Some(subscription) => {
+                if let Ok(TimerStatus::TimerComplete) = subscription.try_recv() {
+                    self.timer_status = TimerStatus::TimerComplete;
+                }
             }
+            None => panic!("No subscriber set!"),
         }
     }
     fn add_subscription(&mut self, reciever: mpsc::Receiver<TimerStatus>) {

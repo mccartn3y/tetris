@@ -1,11 +1,11 @@
+use crate::turn_timer::turn_timer::{TimerStatus, TurnTimerSubscriberTrait};
 use crossterm::event::{poll, read, Event, KeyCode};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use std::sync::mpsc;
+use std::thread::Scope;
 
-use crate::turn_timer::turn_timer::{TimerStatus, TurnTimerSubscriberTrait};
-
-use std::thread;
 use std::time::Duration;
+use std::{io, thread};
 // Struct that runs enable_raw_mode on start and disables when it is
 // dropped so that it is only active in the scope of the instantiation
 struct ScopedRawMode;
@@ -28,18 +28,19 @@ impl Drop for ScopedRawMode {
 pub fn timed_user_input<'a, T: CommandCollector, U: TurnTimerSubscriberTrait + Send + 'a>(
     mut turn_timer_subscriber: U,
     command_dispatcher: mpsc::Sender<MoveCommand>,
+    s: &'a Scope<'a, '_>,
 ) {
     // set up thread for getting cli input
-    thread::scope(|s| {
-        s.spawn(move || {
-            let _guard = ScopedRawMode::new();
-            let mut command_collector = T::new();
-            run_user_input_loop::<T, U>(
-                &mut turn_timer_subscriber,
-                command_dispatcher,
-                command_collector,
-            );
-        });
+
+    s.spawn(move || {
+        let _guard = ScopedRawMode::new();
+        let mut command_collector = T::new();
+        run_user_input_loop::<T, U>(
+            &mut turn_timer_subscriber,
+            command_dispatcher,
+            command_collector,
+        );
+        println!("Exiting user input thread.");
     });
 }
 
@@ -65,25 +66,20 @@ fn run_user_input_loop<'a, T: CommandCollector, U: TurnTimerSubscriberTrait + Se
     turn_timer_subscriber: &mut U,
     command_dispatcher: mpsc::Sender<MoveCommand>,
     mut command_collector: T,
-) {
+) -> io::Result<()> {
     loop {
         match turn_timer_subscriber.get_timer_status() {
             TimerStatus::TimerComplete => {
-                println!("timer complete!");
-                return;
+                return Ok(());
             }
-            TimerStatus::TimerNotComplete => match command_collector.get_command() {
-                Ok(Some(command)) => {
-                    println!("{:?}", command);
+            TimerStatus::TimerNotComplete => match command_collector.get_command()? {
+                Some(command) => {
+                    println!("                    Sending {:?}", command);
                     if let Err(error) = command_dispatcher.send(command) {
                         eprint!("{:?}", error.to_string());
                     }
                 }
-                Ok(None) => (),
-                Err(_) => {
-                    println!("Invalid command recieved");
-                    return;
-                }
+                None => (),
             },
         }
     }
@@ -91,7 +87,7 @@ fn run_user_input_loop<'a, T: CommandCollector, U: TurnTimerSubscriberTrait + Se
 
 pub trait CommandCollector {
     fn new() -> Self;
-    fn get_command(&mut self) -> Result<Option<MoveCommand>, ()>;
+    fn get_command(&mut self) -> std::io::Result<Option<MoveCommand>>;
 }
 #[derive(Debug)]
 pub enum MoveCommand {
@@ -106,9 +102,9 @@ impl CommandCollector for CliCommandCollector {
     fn new() -> Self {
         Self {}
     }
-    fn get_command(&mut self) -> Result<Option<MoveCommand>, ()> {
+    fn get_command(&mut self) -> std::io::Result<Option<MoveCommand>> {
         if poll(Duration::from_millis(100)).expect("Poll of CLI buffer failed.") {
-            return match read().expect("Read of CLI buffer failed.") {
+            return match read()? {
                 Event::Key(key_event) => match key_event.code {
                     KeyCode::Down => Ok(Some(MoveCommand::Down)),
                     KeyCode::Left => Ok(Some(MoveCommand::Left)),
@@ -116,9 +112,9 @@ impl CommandCollector for CliCommandCollector {
                     KeyCode::Char('z') => Ok(Some(MoveCommand::Anticlockwise)),
                     KeyCode::Char('x') => Ok(Some(MoveCommand::Clockwise)),
 
-                    _other => Err(()),
+                    _other => panic!("Unrecognised command!"),
                 },
-                _other => Err(()),
+                _other => panic!("Unrecognised command!"),
             };
         }
         return Ok(None);
@@ -148,13 +144,13 @@ mod tests {
     }
 
     struct TestCommandCollector {
-        outputs: Vec<Result<Option<MoveCommand>, ()>>,
+        outputs: Vec<std::io::Result<Option<MoveCommand>>>,
     }
     impl CommandCollector for TestCommandCollector {
         fn new() -> Self {
             Self { outputs: vec![] }
         }
-        fn get_command(&mut self) -> Result<Option<MoveCommand>, ()> {
+        fn get_command(&mut self) -> std::io::Result<Option<MoveCommand>> {
             match self.outputs.pop() {
                 Some(val) => val,
                 None => Ok(None),
@@ -173,7 +169,9 @@ mod tests {
         let (command_dispatcher, command_reciever) = mpsc::channel();
         let mut command_collector = TestCommandCollector::new();
         command_collector.outputs.push(Ok(Some(MoveCommand::Down)));
-        command_collector.outputs.push(Err(()));
+        command_collector
+            .outputs
+            .push(Err(io::Error::new(io::ErrorKind::NotFound, "")));
 
         run_user_input_loop::<TestCommandCollector, TestTurnTimerSubscriber>(
             &mut test_turn_timer,

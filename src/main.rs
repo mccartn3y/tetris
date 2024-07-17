@@ -1,29 +1,52 @@
+use crossterm::execute;
+use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
+use std::io;
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
+use tetris::models::{CliView, TetrisBoard, TetrisPiece};
 use tetris::turn_timer::turn_timer::{
     Notifier, TimerStatus, TurnTimer, TurnTimerSubscriber, TurnTimerSubscriberTrait,
 };
 use tetris::ui::{timed_user_input, CliCommandCollector, CommandCollector};
 
 fn main() {
-    // This code will create a UI for the tetris game.
-    // The complexity of a tetis UI comes from the
-    // fact that you have a limited amount of time to
-    // make changes to the state of the piece before
-    // it moves. This means that we need to have some way
-    // of collecting and processing moves for a set time
-    // period, after which we shall cease to collect inputs
-    // and make some sort of change.
-    //
-    // At the moment it looks like the best way to do this is
-    // leveraging channels. (This will be my first bit of
-    // concurrent programming, YaY!). We shall set up two channels,
-    // one that collects inputs from the cli and the other which
-    // runs a timer for the given period of time. When there is a
-    // message from the first channel (i.e. a movement), we shall
-    // process it; when there is a message fromt the second channel
-    // we shall move on.
+    game_runner();
+}
+fn game_runner() {
+    // Steps:
+    // - Create board
+    // Loop:
+    //  - Create piece with random shape
+    //  - add piece to board, if error then break
+    //  - print board and piece
+    //  Loop while no collision:
+    //      - start timer
+    //      Loop till timer ends or user send down command:
+    //          - user can translate or rotate piece
+    //          - print board and piece
+    //      - check if moving down would collide with piece stack
+    //  - fix piece on board
+    // - print Game Over!
+    let mut tetris_board = TetrisBoard::new();
+    let mut writer = io::stdout();
+    execute!(writer, EnterAlternateScreen).unwrap();
+
+    loop {
+        if let Err(_) = run_piece_loop(&mut tetris_board) {
+            break;
+        }
+    }
+    execute!(writer, LeaveAlternateScreen).unwrap();
+    println!("Game Over!");
+}
+fn run_piece_loop(tetris_board: &mut TetrisBoard) -> std::io::Result<()> {
+    let mut tetris_piece = TetrisPiece::new(tetris::models::PieceShape::random());
+    // if tetris_board.is_collision(tetris_piece.coordinates()) {
+    //     break;
+    // }
+
+    CliView::draw_piece_and_board(&tetris_piece, &tetris_board);
 
     let mut turn_timer = TurnTimer::new(3_000);
     let mut turn_timer_subscriber = TurnTimerSubscriber::new();
@@ -32,18 +55,26 @@ fn main() {
     turn_timer.add_subscriber(&mut turn_timer_subscriber_1);
 
     turn_timer.run_timer();
+    thread::scope(|s| {
+        let (command_dispatcher, char_receiver) = mpsc::channel();
+        timed_user_input::<CliCommandCollector, TurnTimerSubscriber>(
+            turn_timer_subscriber,
+            command_dispatcher,
+            s,
+        );
 
-    let (command_dispatcher, char_receiver) = mpsc::channel();
-    timed_user_input::<CliCommandCollector, TurnTimerSubscriber>(
-        turn_timer_subscriber,
-        command_dispatcher,
-    );
-
-    for recieved in char_receiver {
-        if let TimerStatus::TimerComplete = turn_timer_subscriber_1.get_timer_status() {
-            break;
+        for recieved in char_receiver {
+            if let TimerStatus::TimerComplete = turn_timer_subscriber_1.get_timer_status() {
+                break;
+            }
+            println!("                             {:?} Recieved!!", recieved);
         }
-        println!("{:?}", recieved);
-        thread::sleep(Duration::from_secs(1));
-    }
+    });
+    println!("Moving to next piece.");
+    Ok(())
+    // if tetris_board.is_collision(tetris_piece.next_turn_coordinates()) {
+    //     break;
+    // } else {
+    //     tetris_piece.move_down();
+    // }
 }
