@@ -3,11 +3,13 @@ use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
 use std::io;
 use std::sync::mpsc;
 use std::thread;
-use tetris::models::{CliView, TetrisBoard, TetrisPiece};
+
+use tetris::models::{TetrisBoard, TetrisPiece};
 use tetris::turn_timer::turn_timer::{
     Notifier, TimerStatus, TurnTimer, TurnTimerSubscriber, TurnTimerSubscriberTrait,
 };
 use tetris::ui::{timed_user_input, CliCommandCollector};
+use tetris::views::CliView;
 
 fn main() {
     game_runner();
