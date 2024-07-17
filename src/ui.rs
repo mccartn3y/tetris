@@ -1,10 +1,11 @@
-use crate::turn_timer::turn_timer::{TimerStatus, TurnTimerSubscriberTrait};
 use crossterm::event::{poll, read, Event, KeyCode};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use std::sync::mpsc;
 use std::thread::Scope;
-
 use std::time::Duration;
+
+use crate::models::MoveCommand;
+use crate::turn_timer::turn_timer::{TimerStatus, TurnTimerSubscriberTrait};
 // Struct that runs enable_raw_mode on start and disables when it is
 // dropped so that it is only active in the scope of the instantiation
 struct ScopedRawMode;
@@ -92,14 +93,7 @@ pub trait CommandCollector {
     fn new() -> Self;
     fn get_command(&mut self) -> std::io::Result<Option<MoveCommand>>;
 }
-#[derive(Debug)]
-pub enum MoveCommand {
-    Left,
-    Down,
-    Right,
-    Clockwise,
-    Anticlockwise,
-}
+
 pub struct CliCommandCollector {}
 impl CommandCollector for CliCommandCollector {
     fn new() -> Self {

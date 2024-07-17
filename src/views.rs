@@ -38,7 +38,7 @@ impl CliView {
         for coord in piece_coordinates {
             queue!(
                 writer,
-                cursor::MoveTo(coord.col + 1, coord.row),
+                cursor::MoveTo((coord.col + 1) as u16, coord.row as u16),
                 style::Print("x")
             )?;
         }

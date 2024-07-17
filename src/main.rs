@@ -42,7 +42,7 @@ fn game_runner() {
     println!("Game Over!");
 }
 fn run_piece_loop(tetris_board: &mut TetrisBoard) -> std::io::Result<()> {
-    let tetris_piece = TetrisPiece::new(tetris::models::PieceShape::random());
+    let mut tetris_piece = TetrisPiece::new(tetris::models::PieceShape::random());
     // if tetris_board.is_collision(tetris_piece.coordinates()) {
     //     break;
     // }
@@ -68,7 +68,9 @@ fn run_piece_loop(tetris_board: &mut TetrisBoard) -> std::io::Result<()> {
             if let TimerStatus::TimerComplete = turn_timer_subscriber_1.get_timer_status() {
                 break;
             }
-            println!("                             {:?} Recieved!!", recieved);
+            tetris_piece.move_peice(&tetris_board, recieved);
+            CliView::draw_piece_and_board(&tetris_piece, &tetris_board)
+                .expect("Failed to draw board.");
         }
     });
     println!("Moving to next piece.");

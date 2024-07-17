@@ -1,14 +1,30 @@
 use rand::seq::IteratorRandom;
 use std::slice::Iter;
+
 pub struct TetrisBoard {
     pub board: Vec<Vec<bool>>,
 }
 impl TetrisBoard {
+    const NUM_ROWS: usize = 16;
+    const NUM_COLS: usize = 10;
+
     pub fn new() -> Self {
-        let rows = vec![false; 10];
+        let row = vec![false; Self::NUM_COLS];
         Self {
-            board: vec![rows; 16],
+            board: vec![row; Self::NUM_ROWS],
         }
+    }
+    fn check_coordinates_on_board(&self, coordinates: Vec<Coord>) -> bool {
+        for coord in coordinates {
+            if coord.row < 0
+                || coord.row >= Self::NUM_ROWS as i16
+                || coord.col < 0
+                || coord.col >= Self::NUM_COLS as i16
+            {
+                return false;
+            }
+        }
+        return true;
     }
 }
 #[derive(Debug)]
@@ -31,40 +47,40 @@ impl PieceShape {
                 Coord { col: 1, row: 0 },
             ],
             PieceShape::Bar => vec![
+                Coord { col: -1, row: 0 },
                 Coord { col: 0, row: 0 },
                 Coord { col: 1, row: 0 },
                 Coord { col: 2, row: 0 },
-                Coord { col: 3, row: 0 },
             ],
             PieceShape::Z => vec![
+                Coord { col: -1, row: 0 },
                 Coord { col: 0, row: 0 },
-                Coord { col: 1, row: 0 },
+                Coord { col: 0, row: 1 },
                 Coord { col: 1, row: 1 },
-                Coord { col: 2, row: 1 },
             ],
             PieceShape::FlippedZ => vec![
-                Coord { col: 0, row: 1 },
-                Coord { col: 1, row: 0 },
-                Coord { col: 1, row: 1 },
-                Coord { col: 2, row: 0 },
-            ],
-            PieceShape::L => vec![
-                Coord { col: 0, row: 1 },
-                Coord { col: 1, row: 1 },
-                Coord { col: 2, row: 1 },
-                Coord { col: 2, row: 0 },
-            ],
-            PieceShape::FlippedL => vec![
+                Coord { col: -1, row: 1 },
                 Coord { col: 0, row: 0 },
                 Coord { col: 0, row: 1 },
-                Coord { col: 1, row: 1 },
-                Coord { col: 2, row: 1 },
+                Coord { col: 1, row: 0 },
             ],
-            PieceShape::T => vec![
+            PieceShape::L => vec![
+                Coord { col: -1, row: 1 },
                 Coord { col: 0, row: 1 },
                 Coord { col: 1, row: 1 },
                 Coord { col: 1, row: 0 },
-                Coord { col: 2, row: 1 },
+            ],
+            PieceShape::FlippedL => vec![
+                Coord { col: -1, row: 0 },
+                Coord { col: -1, row: 1 },
+                Coord { col: 0, row: 1 },
+                Coord { col: 1, row: 1 },
+            ],
+            PieceShape::T => vec![
+                Coord { col: -1, row: 1 },
+                Coord { col: 0, row: 1 },
+                Coord { col: 0, row: 0 },
+                Coord { col: 1, row: 1 },
             ],
         }
     }
@@ -85,9 +101,17 @@ impl PieceShape {
     }
 }
 #[derive(Debug)]
+pub enum MoveCommand {
+    Left,
+    Down,
+    Right,
+    Clockwise,
+    Anticlockwise,
+}
+#[derive(Debug)]
 pub struct Coord {
-    pub col: u16,
-    pub row: u16,
+    pub col: i16,
+    pub row: i16,
 }
 enum Orientation {
     Up,
@@ -125,6 +149,31 @@ impl TetrisPiece {
         }
         return coordinates;
     }
+    pub fn move_peice(&mut self, board: &TetrisBoard, direction: MoveCommand) {
+        match direction {
+            MoveCommand::Right => {
+                let new_centre = Coord {
+                    col: self.centre.col + 1,
+                    row: self.centre.row,
+                };
+                let new_coordinates = self.calc_coordinates_with_centre(Some(&new_centre));
+                if let true = board.check_coordinates_on_board(new_coordinates) {
+                    self.centre.col += 1
+                }
+            }
+            MoveCommand::Left => {
+                let new_centre = Coord {
+                    col: self.centre.col - 1,
+                    row: self.centre.row,
+                };
+                let new_coordinates = self.calc_coordinates_with_centre(Some(&new_centre));
+                if let true = board.check_coordinates_on_board(new_coordinates) {
+                    self.centre.col -= 1
+                }
+            }
+            _other => (),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -160,6 +209,24 @@ mod tests {
                     piece_coordinates[i].row,
                     piece_shape.shape()[i].row + tetris_piece.centre.row
                 );
+            }
+        }
+    }
+
+    #[test]
+    fn test_piece_cannot_go_off_board() {
+        let tetris_board = TetrisBoard::new();
+        let mut tetris_piece = TetrisPiece::new(&PieceShape::Bar);
+        for _ in 0..20 {
+            tetris_piece.move_peice(&tetris_board, MoveCommand::Right);
+            for coord in tetris_piece.coordinates() {
+                assert!(coord.col < TetrisBoard::NUM_COLS as i16);
+            }
+        }
+        for _ in 0..20 {
+            tetris_piece.move_peice(&tetris_board, MoveCommand::Left);
+            for coord in tetris_piece.coordinates() {
+                assert!(coord.col >= 0);
             }
         }
     }
