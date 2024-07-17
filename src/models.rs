@@ -1,6 +1,5 @@
-use crossterm::{cursor, execute, queue, style, Command};
+use crossterm::{cursor, queue, style};
 use rand::seq::IteratorRandom;
-use rand::seq::SliceRandom;
 use std::io;
 use std::io::Write;
 use std::slice::Iter;
@@ -172,16 +171,16 @@ impl CliView {
         writer.flush()?;
         return Ok(());
     }
-    pub fn draw_piece_and_board(piece: &TetrisPiece, board: &TetrisBoard) {
+    pub fn draw_piece_and_board(piece: &TetrisPiece, board: &TetrisBoard) -> std::io::Result<()> {
         let mut writer = io::stdout();
         let board_string = Self::generate_board_string_view(board);
-        Self::draw_board(&mut writer, board_string);
-        Self::draw_piece(&mut writer, piece.coordinates());
+        Self::draw_board(&mut writer, board_string)?;
+        Self::draw_piece(&mut writer, piece.coordinates())?;
+        Ok(())
     }
 }
 #[cfg(test)]
 mod tests {
-    use io::Read;
 
     struct TestWriter {
         buffer: Vec<u8>,
@@ -201,7 +200,7 @@ mod tests {
         for piece_shape in PieceShape::iterator() {
             let tetris_piece = TetrisPiece::new(piece_shape);
 
-            for i in (0..piece_shape.shape().len()) {
+            for i in 0..piece_shape.shape().len() {
                 assert_eq!(tetris_piece.shape[i].col, piece_shape.shape()[i].col);
                 assert_eq!(tetris_piece.shape[i].row, piece_shape.shape()[i].row);
             }
@@ -217,7 +216,7 @@ mod tests {
         for piece_shape in PieceShape::iterator() {
             let tetris_piece = TetrisPiece::new(piece_shape);
             let piece_coordinates = tetris_piece.coordinates();
-            for i in (0..piece_shape.shape().len()) {
+            for i in 0..piece_shape.shape().len() {
                 assert_eq!(
                     piece_coordinates[i].col,
                     piece_shape.shape()[i].col + tetris_piece.centre.col
@@ -275,7 +274,7 @@ mod tests {
 
         let cli_string = vec![String::from(board_row); 2];
         let mut buf_writer = TestWriter { buffer: Vec::new() };
-        CliView::draw_board(&mut buf_writer, cli_string);
+        CliView::draw_board(&mut buf_writer, cli_string).expect("Writing to test writer failed.");
         assert_eq!(buf_writer.buffer, expected_buffer);
     }
 
@@ -301,7 +300,7 @@ mod tests {
             Coord { col: 2, row: 2 },
             Coord { col: 3, row: 2 },
         ];
-        CliView::draw_piece(&mut buf_writer, piece_coords);
+        CliView::draw_piece(&mut buf_writer, piece_coords).expect("Writing to test writer failed.");
         assert_eq!(buf_writer.buffer, expected_buffer);
     }
 }

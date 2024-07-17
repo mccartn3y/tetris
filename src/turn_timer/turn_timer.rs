@@ -91,9 +91,15 @@ mod tests {
     fn test_timer_setup_works() {
         let timer = TurnTimer::new(1);
         assert_eq!(timer.timer_duration, 1);
-        let mut listener = TurnTimerSubscriber::new();
+        let listener = TurnTimerSubscriber::new();
         assert_eq!(listener.timer_status, TimerStatus::TimerNotComplete);
-        assert_eq!(listener.get_timer_status(), TimerStatus::TimerNotComplete);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_subscriber_panics_if_no_subscriber_set() {
+        let mut listener = TurnTimerSubscriber::new();
+        listener.get_timer_status();
     }
 
     #[test]

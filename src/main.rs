@@ -3,12 +3,11 @@ use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
 use std::io;
 use std::sync::mpsc;
 use std::thread;
-use std::time::Duration;
 use tetris::models::{CliView, TetrisBoard, TetrisPiece};
 use tetris::turn_timer::turn_timer::{
     Notifier, TimerStatus, TurnTimer, TurnTimerSubscriber, TurnTimerSubscriberTrait,
 };
-use tetris::ui::{timed_user_input, CliCommandCollector, CommandCollector};
+use tetris::ui::{timed_user_input, CliCommandCollector};
 
 fn main() {
     game_runner();
@@ -41,12 +40,12 @@ fn game_runner() {
     println!("Game Over!");
 }
 fn run_piece_loop(tetris_board: &mut TetrisBoard) -> std::io::Result<()> {
-    let mut tetris_piece = TetrisPiece::new(tetris::models::PieceShape::random());
+    let tetris_piece = TetrisPiece::new(tetris::models::PieceShape::random());
     // if tetris_board.is_collision(tetris_piece.coordinates()) {
     //     break;
     // }
 
-    CliView::draw_piece_and_board(&tetris_piece, &tetris_board);
+    CliView::draw_piece_and_board(&tetris_piece, &tetris_board).expect("Failed to draw board.");
 
     let mut turn_timer = TurnTimer::new(3_000);
     let mut turn_timer_subscriber = TurnTimerSubscriber::new();

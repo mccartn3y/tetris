@@ -5,7 +5,6 @@ use std::sync::mpsc;
 use std::thread::Scope;
 
 use std::time::Duration;
-use std::{io, thread};
 // Struct that runs enable_raw_mode on start and disables when it is
 // dropped so that it is only active in the scope of the instantiation
 struct ScopedRawMode;
@@ -34,13 +33,12 @@ pub fn timed_user_input<'a, T: CommandCollector, U: TurnTimerSubscriberTrait + S
 
     s.spawn(move || {
         let _guard = ScopedRawMode::new();
-        let mut command_collector = T::new();
+        let command_collector = T::new();
         run_user_input_loop::<T, U>(
             &mut turn_timer_subscriber,
             command_dispatcher,
             command_collector,
-        );
-        println!("Exiting user input thread.");
+        )
     });
 }
 
@@ -66,20 +64,25 @@ fn run_user_input_loop<'a, T: CommandCollector, U: TurnTimerSubscriberTrait + Se
     turn_timer_subscriber: &mut U,
     command_dispatcher: mpsc::Sender<MoveCommand>,
     mut command_collector: T,
-) -> io::Result<()> {
+) {
     loop {
         match turn_timer_subscriber.get_timer_status() {
             TimerStatus::TimerComplete => {
-                return Ok(());
+                return;
             }
-            TimerStatus::TimerNotComplete => match command_collector.get_command()? {
-                Some(command) => {
-                    println!("                    Sending {:?}", command);
-                    if let Err(error) = command_dispatcher.send(command) {
-                        eprint!("{:?}", error.to_string());
+            TimerStatus::TimerNotComplete => match command_collector.get_command() {
+                Ok(val) => match val {
+                    Some(command) => {
+                        if let Err(error) = command_dispatcher.send(command) {
+                            eprint!("{:?}", error.to_string());
+                        }
                     }
+                    None => (),
+                },
+                Err(e) => {
+                    eprintln!("Error encountered reading command {:?}", e);
+                    return;
                 }
-                None => (),
             },
         }
     }
@@ -166,12 +169,12 @@ mod tests {
                 TimerStatus::TimerNotComplete,
             ],
         };
-        let (command_dispatcher, command_reciever) = mpsc::channel();
+        let (command_dispatcher, _command_reciever) = mpsc::channel();
         let mut command_collector = TestCommandCollector::new();
         command_collector.outputs.push(Ok(Some(MoveCommand::Down)));
         command_collector
             .outputs
-            .push(Err(io::Error::new(io::ErrorKind::NotFound, "")));
+            .push(Err(std::io::Error::new(std::io::ErrorKind::NotFound, "")));
 
         run_user_input_loop::<TestCommandCollector, TestTurnTimerSubscriber>(
             &mut test_turn_timer,
@@ -194,7 +197,7 @@ mod tests {
                 TimerStatus::TimerNotComplete,
             ],
         };
-        let (command_dispatcher, command_reciever) = mpsc::channel();
+        let (command_dispatcher, _command_reciever) = mpsc::channel();
         let mut command_collector = TestCommandCollector::new();
         command_collector.outputs.push(Ok(Some(MoveCommand::Down)));
 
