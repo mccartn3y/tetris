@@ -1,12 +1,14 @@
 use crossterm::{cursor, execute, queue, style, Command};
+use rand::seq::IteratorRandom;
+use rand::seq::SliceRandom;
 use std::io;
 use std::io::Write;
 use std::slice::Iter;
-struct TetrisBoard {
+pub struct TetrisBoard {
     board: Vec<Vec<bool>>,
 }
 impl TetrisBoard {
-    fn new() -> Self {
+    pub fn new() -> Self {
         let rows = vec![false; 10];
         Self {
             board: vec![rows; 16],
@@ -14,7 +16,7 @@ impl TetrisBoard {
     }
 }
 #[derive(Debug)]
-enum PieceShape {
+pub enum PieceShape {
     Square,
     Bar,
     Z,
@@ -24,7 +26,7 @@ enum PieceShape {
     T,
 }
 impl PieceShape {
-    fn shape(&self) -> Vec<Coord> {
+    pub fn shape(&self) -> Vec<Coord> {
         match *self {
             PieceShape::Square => vec![
                 Coord { col: 0, row: 0 },
@@ -70,7 +72,7 @@ impl PieceShape {
             ],
         }
     }
-    pub fn iterator() -> Iter<'static, PieceShape> {
+    pub fn iterator() -> Iter<'static, Self> {
         static PIECE_SHAPES: [PieceShape; 7] = [
             PieceShape::Square,
             PieceShape::Bar,
@@ -82,9 +84,12 @@ impl PieceShape {
         ];
         PIECE_SHAPES.iter()
     }
+    pub fn random() -> &'static Self {
+        Self::iterator().choose(&mut rand::thread_rng()).unwrap()
+    }
 }
 #[derive(Debug)]
-struct Coord {
+pub struct Coord {
     col: u16,
     row: u16,
 }
@@ -94,25 +99,42 @@ enum Orientation {
     Down,
     Left,
 }
-struct TetrisPiece {
+pub struct TetrisPiece {
     shape: Vec<Coord>,
     centre: Coord,
     orientation: Orientation,
 }
 impl TetrisPiece {
-    fn new(piece_shape: &PieceShape) -> Self {
+    pub fn new(piece_shape: &PieceShape) -> Self {
         Self {
             shape: piece_shape.shape(),
             centre: Coord { col: 4, row: 2 },
             orientation: Orientation::Up,
         }
     }
+    pub fn coordinates(&self) -> Vec<Coord> {
+        self.calc_coordinates_with_centre(None)
+    }
+    fn calc_coordinates_with_centre(&self, new_centre: Option<&Coord>) -> Vec<Coord> {
+        let new_centre = match new_centre {
+            None => &self.centre,
+            Some(centre) => centre,
+        };
+        let mut coordinates = Vec::with_capacity(self.shape.len());
+        for coords in &self.shape {
+            coordinates.push(Coord {
+                col: coords.col + new_centre.col,
+                row: coords.row + new_centre.row,
+            });
+        }
+        return coordinates;
+    }
 }
 struct CliView;
 impl CliView {
-    fn generate_board_string_view(tetris_board: TetrisBoard) -> Vec<String> {
+    fn generate_board_string_view(tetris_board: &TetrisBoard) -> Vec<String> {
         let mut view_lines: Vec<String> = Vec::with_capacity(tetris_board.board.len());
-        for line in tetris_board.board {
+        for line in &tetris_board.board {
             let mut line_chars: Vec<u8> = vec!['|' as u8];
             line_chars.extend(line.iter().map(|x| match x {
                 true => 'o' as u8,
@@ -123,7 +145,7 @@ impl CliView {
         }
         return view_lines;
     }
-    fn print_board<W: Write>(writer: &mut W, board_string: Vec<String>) -> std::io::Result<()> {
+    fn draw_board<W: Write>(writer: &mut W, board_string: Vec<String>) -> std::io::Result<()> {
         queue!(writer, cursor::MoveTo(0, 0),)?;
         for line in &board_string[0..board_string.len() - 1] {
             queue!(writer, style::Print(line), cursor::MoveToNextLine(1),)?;
@@ -149,6 +171,12 @@ impl CliView {
         }
         writer.flush()?;
         return Ok(());
+    }
+    fn draw_piece_and_board(piece: &TetrisPiece, board: &TetrisBoard) {
+        let mut writer = io::stdout();
+        let board_string = Self::generate_board_string_view(board);
+        Self::draw_board(&mut writer, board_string);
+        Self::draw_piece(&mut writer, piece.coordinates());
     }
 }
 #[cfg(test)]
@@ -184,12 +212,30 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_piece_coordinates_generated() {
+        for piece_shape in PieceShape::iterator() {
+            let tetris_piece = TetrisPiece::new(piece_shape);
+            let piece_coordinates = tetris_piece.coordinates();
+            for i in (0..piece_shape.shape().len()) {
+                assert_eq!(
+                    piece_coordinates[i].col,
+                    piece_shape.shape()[i].col + tetris_piece.centre.col
+                );
+                assert_eq!(
+                    piece_coordinates[i].row,
+                    piece_shape.shape()[i].row + tetris_piece.centre.row
+                );
+            }
+        }
+    }
+
     use super::*;
     #[test]
     fn test_cli_view_generates_board() {
         let expected_string = vec![String::from("|          |"); 16];
         let tetris_board = TetrisBoard::new();
-        let cli_string = CliView::generate_board_string_view(tetris_board);
+        let cli_string = CliView::generate_board_string_view(&tetris_board);
         assert_eq!(cli_string, expected_string);
     }
 
@@ -229,7 +275,7 @@ mod tests {
 
         let cli_string = vec![String::from(board_row); 2];
         let mut buf_writer = TestWriter { buffer: Vec::new() };
-        CliView::print_board(&mut buf_writer, cli_string);
+        CliView::draw_board(&mut buf_writer, cli_string);
         assert_eq!(buf_writer.buffer, expected_buffer);
     }
 
