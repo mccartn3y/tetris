@@ -81,14 +81,14 @@ fn run_user_input_loop<'a, T: CommandCollector, U: TurnTimerSubscriberTrait + Se
                 Ok(val) => match val {
                     Some(command) => {
                         if let Err(error) = command_dispatcher.send(command) {
-                            eprint!("{:?}", error.to_string());
+                            log::warn!("{:?}", error.to_string());
                             return;
                         }
                     }
                     None => (),
                 },
                 Err(e) => {
-                    eprintln!("Error encountered reading command {:?}", e);
+                    log::warn!("Error encountered reading command {:?}", e);
                     return;
                 }
             },

@@ -1,3 +1,4 @@
+use log;
 use std::cmp;
 use std::io;
 use std::sync::mpsc;
@@ -86,7 +87,7 @@ fn run_piece_loop(
                 }
                 if let Some(TurnEvent::EndTurn) = tetris_piece.move_peice(&tetris_board, recieved) {
                     if let Err(_) = turn_event_sender.send(TurnEvent::EndTurn) {
-                        eprintln!("End turn event sent to closed turn event channel.")
+                        log::warn!("End turn event sent to closed turn event channel.");
                     };
                     break;
                 };

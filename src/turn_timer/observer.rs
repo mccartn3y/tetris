@@ -10,7 +10,7 @@ pub trait Notifier<T: std::clone::Clone> {
     fn notify(&self, context: &T) {
         for subscriber in self.subscribers() {
             if let Err(_) = subscriber.send(context.clone()) {
-                eprintln!("Attempted to send message on a closed channel.")
+                log::warn!("Attempted to send message on a closed channel.")
             };
         }
     }
