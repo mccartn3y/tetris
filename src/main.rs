@@ -1,5 +1,3 @@
-use crossterm::execute;
-use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
 use std::cmp;
 use std::io;
 use std::sync::mpsc;
@@ -13,13 +11,12 @@ use tetris::ui::{timed_user_input, CliCommandCollector};
 use tetris::views::CliView;
 
 fn main() {
-    game_runner();
+    println!("Game Over! Score: {}", game_runner());
 }
-fn game_runner() {
+fn game_runner() -> u64 {
     let mut tetris_board = TetrisBoard::new();
-    let mut writer = io::stdout();
-    execute!(writer, EnterAlternateScreen).unwrap();
-    CliView::draw_intro(&mut writer).unwrap();
+    let mut cli_writer = CliView::<io::Stdout>::new();
+    cli_writer.draw_intro().unwrap();
 
     let mut score = 0;
     let mut level = 0;
@@ -29,8 +26,9 @@ fn game_runner() {
             val if val < 9 => (1000 * (48 - (5 * level))) / 60,
             _ => cmp::max((1000 * (9 - (level - 9))) / 60, 1000 / 60),
         };
-        CliView::draw_score(&mut writer, score, level, turn_duration).unwrap();
-        let cleared_rows = match run_piece_loop(&mut tetris_board, turn_duration) {
+        cli_writer.draw_score(score, level, turn_duration).unwrap();
+
+        let cleared_rows = match run_piece_loop(&mut tetris_board, turn_duration, &mut cli_writer) {
             Ok(cleared_rows) => cleared_rows,
             Err(_) => break,
         };
@@ -47,10 +45,13 @@ fn game_runner() {
             cleared_rows_count = 0;
         }
     }
-    execute!(writer, LeaveAlternateScreen).unwrap();
-    println!("Game Over! Score: {}", score);
+    score
 }
-fn run_piece_loop(tetris_board: &mut TetrisBoard, turn_duration: u64) -> Result<u16, ()> {
+fn run_piece_loop(
+    tetris_board: &mut TetrisBoard,
+    turn_duration: u64,
+    cli_writer: &mut CliView<io::Stdout>,
+) -> Result<u16, ()> {
     let mut tetris_piece = TetrisPiece::new(tetris::models::PieceShape::random());
     if let PiecePositionValidity::PieceCollision =
         tetris_board.check_is_valid_position(&tetris_piece.coordinates())
@@ -58,7 +59,9 @@ fn run_piece_loop(tetris_board: &mut TetrisBoard, turn_duration: u64) -> Result<
         return Err(());
     }
     loop {
-        CliView::draw_piece_and_board(&tetris_piece, &tetris_board).expect("Failed to draw board.");
+        cli_writer
+            .draw_piece_and_board(&tetris_piece, &tetris_board)
+            .expect("Failed to draw board.");
 
         let mut turn_timer = TurnTimer::new(turn_duration);
         let mut turn_timer_subscriber = TurnTimerSubscriber::new();
@@ -87,7 +90,8 @@ fn run_piece_loop(tetris_board: &mut TetrisBoard, turn_duration: u64) -> Result<
                     };
                     break;
                 };
-                CliView::draw_piece_and_board(&tetris_piece, &tetris_board)
+                cli_writer
+                    .draw_piece_and_board(&tetris_piece, &tetris_board)
                     .expect("Failed to draw board.");
             }
         });

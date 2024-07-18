@@ -1,10 +1,27 @@
 use crate::models::{Coord, TetrisBoard, TetrisPiece};
-use crossterm::{cursor, queue, style};
+use crossterm::terminal;
+use crossterm::{cursor, execute, queue, style};
 use std::io;
 use std::io::Write;
 
-pub struct CliView;
-impl CliView {
+pub struct CliView<W: Write> {
+    writer: W,
+}
+impl CliView<io::Stdout> {
+    pub fn new() -> Self {
+        let mut writer = io::stdout();
+        execute!(writer, terminal::EnterAlternateScreen).unwrap();
+        Self { writer }
+    }
+}
+impl<W: Write> Drop for CliView<W> {
+    fn drop(&mut self) {
+        execute!(self.writer, terminal::LeaveAlternateScreen).expect(
+            "Failed to exit alternate screen. Restart terminal to resume normal behaviour.",
+        );
+    }
+}
+impl<W: Write> CliView<W> {
     fn generate_board_string_view(tetris_board: &TetrisBoard) -> Vec<String> {
         let mut view_lines: Vec<String> = Vec::with_capacity(tetris_board.board.len());
         for line in &tetris_board.board {
@@ -18,48 +35,51 @@ impl CliView {
         }
         return view_lines;
     }
-    fn draw_board<W: Write>(writer: &mut W, board_string: Vec<String>) -> std::io::Result<()> {
-        queue!(writer, cursor::MoveTo(0, 0),)?;
+    fn draw_board(&mut self, board_string: Vec<String>) -> std::io::Result<()> {
+        queue!(self.writer, cursor::MoveTo(0, 0),)?;
         for line in &board_string[0..board_string.len() - 1] {
-            queue!(writer, style::Print(line), cursor::MoveToNextLine(1),)?;
+            queue!(self.writer, style::Print(line), cursor::MoveToNextLine(1),)?;
         }
         queue!(
-            writer,
+            self.writer,
             style::SetAttribute(style::Attribute::Underlined),
             style::Print(&board_string[board_string.len() - 1]),
             style::SetAttribute(style::Attribute::NoUnderline),
         )?;
 
-        writer.flush()?;
+        self.writer.flush()?;
 
         return Ok(());
     }
-    fn draw_piece<W: Write>(writer: &mut W, piece_coordinates: Vec<Coord>) -> std::io::Result<()> {
+    fn draw_piece(&mut self, piece_coordinates: Vec<Coord>) -> std::io::Result<()> {
         for coord in piece_coordinates {
             queue!(
-                writer,
+                self.writer,
                 cursor::MoveTo((coord.col + 1) as u16, coord.row as u16),
                 style::Print("x")
             )?;
         }
-        writer.flush()?;
+        self.writer.flush()?;
         return Ok(());
     }
-    pub fn draw_piece_and_board(piece: &TetrisPiece, board: &TetrisBoard) -> std::io::Result<()> {
-        let mut writer = io::stdout();
+    pub fn draw_piece_and_board(
+        &mut self,
+        piece: &TetrisPiece,
+        board: &TetrisBoard,
+    ) -> std::io::Result<()> {
         let board_string = Self::generate_board_string_view(board);
-        Self::draw_board(&mut writer, board_string)?;
-        Self::draw_piece(&mut writer, piece.coordinates())?;
+        Self::draw_board(self, board_string)?;
+        Self::draw_piece(self, piece.coordinates())?;
         Ok(())
     }
-    pub fn draw_score<W: Write>(
-        writer: &mut W,
+    pub fn draw_score(
+        &mut self,
         score: u64,
         level: u64,
         time_per_turn: u64,
     ) -> std::io::Result<()> {
         queue!(
-            writer,
+            self.writer,
             cursor::MoveTo(20, 13),
             style::Print(format!("Score: {}", score)),
             cursor::MoveTo(20, 14),
@@ -67,10 +87,10 @@ impl CliView {
             cursor::MoveTo(20, 15),
             style::Print(format!("Time per turn: {} ms", time_per_turn)),
         )?;
-        writer.flush()?;
+        self.writer.flush()?;
         return Ok(());
     }
-    pub fn draw_intro<W: Write>(writer: &mut W) -> std::io::Result<()> {
+    pub fn draw_intro(&mut self) -> std::io::Result<()> {
         let tetris_art = vec![
             String::from("##### ##### ##### ###   #####   ### "),
             String::from("  #   #       #   #  #    #    # "),
@@ -80,19 +100,19 @@ impl CliView {
         ];
         for i in 0..tetris_art.len() {
             queue!(
-                writer,
+                self.writer,
                 cursor::MoveTo(20, i as u16),
                 style::Print(&tetris_art[i]),
             )?;
         }
         queue!(
-            writer,
+            self.writer,
             cursor::MoveTo(20, 6),
             style::Print(
                 "Use the arrows to move, 'x' to rotate clockwise and 'z' to rotate anticlockise. Hit Esc to quit."
             ),
         )?;
-        writer.flush()?;
+        self.writer.flush()?;
         return Ok(());
     }
 }
@@ -116,7 +136,7 @@ mod tests {
     fn test_cli_view_generates_board() {
         let expected_string = vec![String::from("|          |"); 16];
         let tetris_board = TetrisBoard::new();
-        let cli_string = CliView::generate_board_string_view(&tetris_board);
+        let cli_string = CliView::<TestWriter>::generate_board_string_view(&tetris_board);
         assert_eq!(cli_string, expected_string);
     }
 
@@ -155,9 +175,13 @@ mod tests {
             .collect();
 
         let cli_string = vec![String::from(board_row); 2];
-        let mut buf_writer = TestWriter { buffer: Vec::new() };
-        CliView::draw_board(&mut buf_writer, cli_string).expect("Writing to test writer failed.");
-        assert_eq!(buf_writer.buffer, expected_buffer);
+        let mut test_viewer = CliView {
+            writer: TestWriter { buffer: Vec::new() },
+        };
+        test_viewer
+            .draw_board(cli_string)
+            .expect("Writing to test writer failed.");
+        assert_eq!(test_viewer.writer.buffer, expected_buffer);
     }
 
     #[cfg(unix)]
@@ -175,14 +199,18 @@ mod tests {
             .chain(['x' as u8])
             .collect();
 
-        let mut buf_writer = TestWriter { buffer: Vec::new() };
+        let mut test_viewer = CliView {
+            writer: TestWriter { buffer: Vec::new() },
+        };
         let piece_coords = vec![
             Coord { col: 1, row: 1 },
             Coord { col: 2, row: 1 },
             Coord { col: 2, row: 2 },
             Coord { col: 3, row: 2 },
         ];
-        CliView::draw_piece(&mut buf_writer, piece_coords).expect("Writing to test writer failed.");
-        assert_eq!(buf_writer.buffer, expected_buffer);
+        test_viewer
+            .draw_piece(piece_coords)
+            .expect("Writing to test writer failed.");
+        assert_eq!(test_viewer.writer.buffer, expected_buffer);
     }
 }
