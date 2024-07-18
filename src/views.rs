@@ -60,12 +60,37 @@ impl CliView {
     ) -> std::io::Result<()> {
         queue!(
             writer,
-            cursor::MoveTo(20, 1),
+            cursor::MoveTo(20, 13),
             style::Print(format!("Score: {}", score)),
-            cursor::MoveTo(20, 2),
+            cursor::MoveTo(20, 14),
             style::Print(format!("Current Level: {}", level)),
-            cursor::MoveTo(20, 3),
+            cursor::MoveTo(20, 15),
             style::Print(format!("Time per turn: {} ms", time_per_turn)),
+        )?;
+        writer.flush()?;
+        return Ok(());
+    }
+    pub fn draw_intro<W: Write>(writer: &mut W) -> std::io::Result<()> {
+        let tetris_art = vec![
+            String::from("##### ##### ##### ###   #####   ### "),
+            String::from("  #   #       #   #  #    #    # "),
+            String::from("  #   ####    #   ##      #     ##"),
+            String::from("  #   #       #   # #     #       #"),
+            String::from("  #   ####    #   #  #  #####   ##"),
+        ];
+        for i in 0..tetris_art.len() {
+            queue!(
+                writer,
+                cursor::MoveTo(20, i as u16),
+                style::Print(&tetris_art[i]),
+            )?;
+        }
+        queue!(
+            writer,
+            cursor::MoveTo(20, 6),
+            style::Print(
+                "Use the arrows to move, 'x' to rotate clockwise and 'z' to rotate anticlockise."
+            ),
         )?;
         writer.flush()?;
         return Ok(());

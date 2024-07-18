@@ -19,6 +19,7 @@ fn game_runner() {
     let mut tetris_board = TetrisBoard::new();
     let mut writer = io::stdout();
     execute!(writer, EnterAlternateScreen).unwrap();
+    CliView::draw_intro(&mut writer).unwrap();
 
     let mut score = 0;
     let mut level = 0;
