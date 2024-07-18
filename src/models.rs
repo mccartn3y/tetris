@@ -43,6 +43,21 @@ impl TetrisBoard {
             self.board[coord.row as usize][coord.col as usize] = true;
         }
     }
+    pub fn clear_rows(&mut self) -> u16 {
+        let mut board_without_row: Vec<Vec<bool>> = self
+            .board
+            .clone()
+            .into_iter()
+            .rev()
+            .filter(|row| !row.iter().all(|x| *x))
+            .collect();
+        let num_cleared_rows = Self::NUM_ROWS - board_without_row.len();
+        for _ in 0..num_cleared_rows {
+            board_without_row.push(vec![false; Self::NUM_COLS]);
+        }
+        self.board = board_without_row.into_iter().rev().collect();
+        return num_cleared_rows as u16;
+    }
 }
 #[derive(Debug, PartialEq)]
 pub enum PiecePositionValidity {
@@ -462,5 +477,23 @@ mod tests {
             }
             assert_eq!(expected_shape, tetris_piece.shape)
         }
+    }
+
+    #[test]
+    fn test_clear_rows_returns_num_full_rows() {
+        let mut tetris_board = TetrisBoard::new();
+        tetris_board.board[10] = vec![true; TetrisBoard::NUM_COLS];
+        tetris_board.board[11] = vec![true; TetrisBoard::NUM_COLS];
+        tetris_board.board[12] = vec![true; TetrisBoard::NUM_COLS];
+        assert_eq!(3, tetris_board.clear_rows());
+    }
+
+    #[test]
+    fn test_clear_rows_shifts_rows() {
+        let mut tetris_board = TetrisBoard::new();
+        tetris_board.board[TetrisBoard::NUM_ROWS - 1] = vec![true; TetrisBoard::NUM_COLS];
+        tetris_board.board[TetrisBoard::NUM_ROWS - 2][0] = true;
+        tetris_board.clear_rows();
+        assert!(tetris_board.board[TetrisBoard::NUM_ROWS - 1][0]);
     }
 }

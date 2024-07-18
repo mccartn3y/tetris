@@ -107,7 +107,7 @@ impl CommandCollector for CliCommandCollector {
         Self {}
     }
     fn get_command(&mut self) -> std::io::Result<Option<MoveCommand>> {
-        if poll(Duration::from_millis(100)).expect("Poll of CLI buffer failed.") {
+        if poll(Duration::from_millis(2)).expect("Poll of CLI buffer failed.") {
             return match read()? {
                 Event::Key(key_event) => match key_event.code {
                     KeyCode::Down => Ok(Some(MoveCommand::Down)),

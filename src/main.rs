@@ -34,14 +34,15 @@ fn game_runner() {
     execute!(writer, EnterAlternateScreen).unwrap();
 
     loop {
-        if let Err(_) = run_piece_loop(&mut tetris_board) {
-            break;
+        match run_piece_loop(&mut tetris_board) {
+            Ok(cleared_rows) => println!("                   {}", cleared_rows),
+            Err(_) => break,
         }
     }
     execute!(writer, LeaveAlternateScreen).unwrap();
     println!("Game Over!");
 }
-fn run_piece_loop(tetris_board: &mut TetrisBoard) -> Result<(), ()> {
+fn run_piece_loop(tetris_board: &mut TetrisBoard) -> Result<u16, ()> {
     let mut tetris_piece = TetrisPiece::new(tetris::models::PieceShape::random());
     if let PiecePositionValidity::PieceCollision =
         tetris_board.check_is_valid_position(&tetris_piece.coordinates())
@@ -51,7 +52,7 @@ fn run_piece_loop(tetris_board: &mut TetrisBoard) -> Result<(), ()> {
     loop {
         CliView::draw_piece_and_board(&tetris_piece, &tetris_board).expect("Failed to draw board.");
 
-        let mut turn_timer = TurnTimer::new(3_000);
+        let mut turn_timer = TurnTimer::new(100);
         let mut turn_timer_subscriber = TurnTimerSubscriber::new();
         let mut turn_timer_subscriber_1 = TurnTimerSubscriber::new();
         turn_timer.add_subscriber(&mut turn_timer_subscriber);
@@ -88,6 +89,5 @@ fn run_piece_loop(tetris_board: &mut TetrisBoard) -> Result<(), ()> {
             break;
         }
     }
-    println!("Moving to next piece.");
-    Ok(())
+    Ok(tetris_board.clear_rows())
 }
