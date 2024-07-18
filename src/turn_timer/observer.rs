@@ -9,9 +9,9 @@ pub trait Notifier<T: std::clone::Clone> {
     fn subscribers(&self) -> &Vec<mpsc::Sender<T>>;
     fn notify(&self, context: &T) {
         for subscriber in self.subscribers() {
-            subscriber
-                .send(context.clone())
-                .expect(&format!("Failed to update subscriber {subscriber:?}"));
+            if let Err(_) = subscriber.send(context.clone()) {
+                eprintln!("Attempted to send message on a closed channel.")
+            };
         }
     }
 }

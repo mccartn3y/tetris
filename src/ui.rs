@@ -4,7 +4,7 @@ use std::sync::mpsc;
 use std::thread::Scope;
 use std::time::Duration;
 
-use crate::models::MoveCommand;
+use crate::models::{MoveCommand, TurnEvent};
 use crate::turn_timer::turn_timer::{TimerStatus, TurnTimerSubscriberTrait};
 // Struct that runs enable_raw_mode on start and disables when it is
 // dropped so that it is only active in the scope of the instantiation
@@ -28,6 +28,7 @@ impl Drop for ScopedRawMode {
 pub fn timed_user_input<'a, T: CommandCollector, U: TurnTimerSubscriberTrait + Send + 'a>(
     mut turn_timer_subscriber: U,
     command_dispatcher: mpsc::Sender<MoveCommand>,
+    turn_event_reciever: mpsc::Receiver<TurnEvent>,
     s: &'a Scope<'a, '_>,
 ) {
     // set up thread for getting cli input
@@ -39,6 +40,7 @@ pub fn timed_user_input<'a, T: CommandCollector, U: TurnTimerSubscriberTrait + S
             &mut turn_timer_subscriber,
             command_dispatcher,
             command_collector,
+            turn_event_reciever,
         )
     });
 }
@@ -65,8 +67,12 @@ fn run_user_input_loop<'a, T: CommandCollector, U: TurnTimerSubscriberTrait + Se
     turn_timer_subscriber: &mut U,
     command_dispatcher: mpsc::Sender<MoveCommand>,
     mut command_collector: T,
+    turn_event_reciever: mpsc::Receiver<TurnEvent>,
 ) {
     loop {
+        if let Ok(TurnEvent::EndTurn) = turn_event_reciever.try_recv() {
+            return;
+        }
         match turn_timer_subscriber.get_timer_status() {
             TimerStatus::TimerComplete => {
                 return;
@@ -76,6 +82,7 @@ fn run_user_input_loop<'a, T: CommandCollector, U: TurnTimerSubscriberTrait + Se
                     Some(command) => {
                         if let Err(error) = command_dispatcher.send(command) {
                             eprint!("{:?}", error.to_string());
+                            return;
                         }
                     }
                     None => (),
@@ -164,6 +171,7 @@ mod tests {
             ],
         };
         let (command_dispatcher, _command_reciever) = mpsc::channel();
+        let (_turn_event_sender, turn_event_reciever) = mpsc::channel::<TurnEvent>();
         let mut command_collector = TestCommandCollector::new();
         command_collector.outputs.push(Ok(Some(MoveCommand::Down)));
         command_collector
@@ -174,11 +182,38 @@ mod tests {
             &mut test_turn_timer,
             command_dispatcher,
             command_collector,
+            turn_event_reciever,
         );
         assert_eq!(
             test_turn_timer.get_timer_status(),
             TimerStatus::TimerNotComplete
         );
+    }
+    #[test]
+    fn test_loop_exits_on_end_turn_event() {
+        let mut test_turn_timer = TestTurnTimerSubscriber {
+            outputs: vec![
+                TimerStatus::TimerComplete,
+                TimerStatus::TimerComplete,
+                TimerStatus::TimerNotComplete,
+                TimerStatus::TimerNotComplete,
+                TimerStatus::TimerNotComplete,
+            ],
+        };
+        let (command_dispatcher, _command_reciever) = mpsc::channel();
+        let (turn_event_sender, turn_event_reciever) = mpsc::channel::<TurnEvent>();
+        let mut command_collector = TestCommandCollector::new();
+        command_collector.outputs.push(Ok(Some(MoveCommand::Down)));
+        turn_event_sender
+            .send(TurnEvent::EndTurn)
+            .expect("Sent end turn event to closed channel.");
+        run_user_input_loop::<TestCommandCollector, TestTurnTimerSubscriber>(
+            &mut test_turn_timer,
+            command_dispatcher,
+            command_collector,
+            turn_event_reciever,
+        );
+        assert_eq!(test_turn_timer.outputs.len(), 5);
     }
     #[test]
     fn test_loop_does_not_exit_on_valid_input() {
@@ -192,6 +227,7 @@ mod tests {
             ],
         };
         let (command_dispatcher, _command_reciever) = mpsc::channel();
+        let (_turn_event_sender, turn_event_reciever) = mpsc::channel::<TurnEvent>();
         let mut command_collector = TestCommandCollector::new();
         command_collector.outputs.push(Ok(Some(MoveCommand::Down)));
 
@@ -199,6 +235,7 @@ mod tests {
             &mut test_turn_timer,
             command_dispatcher,
             command_collector,
+            turn_event_reciever,
         );
         assert_eq!(test_turn_timer.outputs.len(), 1);
     }
