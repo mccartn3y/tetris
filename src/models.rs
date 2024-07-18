@@ -196,9 +196,15 @@ impl TetrisPiece {
             MoveCommand::Down => Some(TurnEvent::EndTurn),
             MoveCommand::Clockwise => {
                 if let Ok(new_coordinates) = self.calc_rotated_shape(MoveCommand::Clockwise) {
-                    if let PiecePositionValidity::Valid =
-                        board.check_is_valid_position(&new_coordinates)
-                    {
+                    if let PiecePositionValidity::Valid = board.check_is_valid_position(
+                        &new_coordinates
+                            .iter()
+                            .map(|x| Coord {
+                                col: x.col + self.centre.col,
+                                row: x.row + self.centre.row,
+                            })
+                            .collect(),
+                    ) {
                         self.shape = new_coordinates;
                     }
                 }
@@ -206,9 +212,15 @@ impl TetrisPiece {
             }
             MoveCommand::Anticlockwise => {
                 if let Ok(new_coordinates) = self.calc_rotated_shape(MoveCommand::Anticlockwise) {
-                    if let PiecePositionValidity::Valid =
-                        board.check_is_valid_position(&new_coordinates)
-                    {
+                    if let PiecePositionValidity::Valid = board.check_is_valid_position(
+                        &new_coordinates
+                            .iter()
+                            .map(|x| Coord {
+                                col: x.col + self.centre.col,
+                                row: x.row + self.centre.row,
+                            })
+                            .collect(),
+                    ) {
                         self.shape = new_coordinates;
                     }
                 }
