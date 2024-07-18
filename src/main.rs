@@ -33,11 +33,27 @@ fn game_runner() {
     let mut writer = io::stdout();
     execute!(writer, EnterAlternateScreen).unwrap();
 
+    let mut score = 0;
+    let mut level = 0;
+    let mut cleared_rows_count = 0;
     loop {
-        match run_piece_loop(&mut tetris_board) {
-            Ok(cleared_rows) => println!("                   {}", cleared_rows),
+        let cleared_rows = match run_piece_loop(&mut tetris_board) {
+            Ok(cleared_rows) => cleared_rows,
             Err(_) => break,
+        };
+        cleared_rows_count += cleared_rows;
+        score += match cleared_rows {
+            1 => 40 * (level + 1),
+            2 => 100 * (level + 1),
+            3 => 300 * (level + 1),
+            4 => 1200 * (level + 1),
+            _other => 0,
+        };
+        if cleared_rows_count >= 10 {
+            level += 1;
+            cleared_rows_count = 0;
         }
+        println!("                 {}", score);
     }
     execute!(writer, LeaveAlternateScreen).unwrap();
     println!("Game Over!");
@@ -52,7 +68,7 @@ fn run_piece_loop(tetris_board: &mut TetrisBoard) -> Result<u16, ()> {
     loop {
         CliView::draw_piece_and_board(&tetris_piece, &tetris_board).expect("Failed to draw board.");
 
-        let mut turn_timer = TurnTimer::new(100);
+        let mut turn_timer = TurnTimer::new(800);
         let mut turn_timer_subscriber = TurnTimerSubscriber::new();
         let mut turn_timer_subscriber_1 = TurnTimerSubscriber::new();
         turn_timer.add_subscriber(&mut turn_timer_subscriber);
