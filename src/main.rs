@@ -1,5 +1,6 @@
 use crossterm::execute;
 use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
+use std::cmp;
 use std::io;
 use std::sync::mpsc;
 use std::thread;
@@ -15,20 +16,6 @@ fn main() {
     game_runner();
 }
 fn game_runner() {
-    // Steps:
-    // - Create board
-    // Loop:
-    //  - Create piece with random shape
-    //  - add piece to board, if error then break
-    //  - print board and piece
-    //  Loop while no collision:
-    //      - start timer
-    //      Loop till timer ends or user send down command:
-    //          - user can translate or rotate piece
-    //          - print board and piece
-    //      - check if moving down would collide with piece stack
-    //  - fix piece on board
-    // - print Game Over!
     let mut tetris_board = TetrisBoard::new();
     let mut writer = io::stdout();
     execute!(writer, EnterAlternateScreen).unwrap();
@@ -37,7 +24,12 @@ fn game_runner() {
     let mut level = 0;
     let mut cleared_rows_count = 0;
     loop {
-        let cleared_rows = match run_piece_loop(&mut tetris_board) {
+        let turn_duration = match level {
+            val if val < 9 => (1000 * (48 - (5 * level))) / 60,
+            _ => cmp::max((1000 * (9 - (level - 9))) / 60, 1000 / 60),
+        };
+        CliView::draw_score(&mut writer, score, level, turn_duration).unwrap();
+        let cleared_rows = match run_piece_loop(&mut tetris_board, turn_duration) {
             Ok(cleared_rows) => cleared_rows,
             Err(_) => break,
         };
@@ -53,12 +45,11 @@ fn game_runner() {
             level += 1;
             cleared_rows_count = 0;
         }
-        println!("                 {}", score);
     }
     execute!(writer, LeaveAlternateScreen).unwrap();
-    println!("Game Over!");
+    println!("Game Over! Score: {}", score);
 }
-fn run_piece_loop(tetris_board: &mut TetrisBoard) -> Result<u16, ()> {
+fn run_piece_loop(tetris_board: &mut TetrisBoard, turn_duration: u64) -> Result<u16, ()> {
     let mut tetris_piece = TetrisPiece::new(tetris::models::PieceShape::random());
     if let PiecePositionValidity::PieceCollision =
         tetris_board.check_is_valid_position(&tetris_piece.coordinates())
@@ -68,7 +59,7 @@ fn run_piece_loop(tetris_board: &mut TetrisBoard) -> Result<u16, ()> {
     loop {
         CliView::draw_piece_and_board(&tetris_piece, &tetris_board).expect("Failed to draw board.");
 
-        let mut turn_timer = TurnTimer::new(800);
+        let mut turn_timer = TurnTimer::new(turn_duration);
         let mut turn_timer_subscriber = TurnTimerSubscriber::new();
         let mut turn_timer_subscriber_1 = TurnTimerSubscriber::new();
         turn_timer.add_subscriber(&mut turn_timer_subscriber);

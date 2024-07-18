@@ -52,6 +52,24 @@ impl CliView {
         Self::draw_piece(&mut writer, piece.coordinates())?;
         Ok(())
     }
+    pub fn draw_score<W: Write>(
+        writer: &mut W,
+        score: u64,
+        level: u64,
+        time_per_turn: u64,
+    ) -> std::io::Result<()> {
+        queue!(
+            writer,
+            cursor::MoveTo(20, 1),
+            style::Print(format!("Score: {}", score)),
+            cursor::MoveTo(20, 2),
+            style::Print(format!("Current Level: {}", level)),
+            cursor::MoveTo(20, 3),
+            style::Print(format!("Time per turn: {} ms", time_per_turn)),
+        )?;
+        writer.flush()?;
+        return Ok(());
+    }
 }
 
 #[cfg(test)]
