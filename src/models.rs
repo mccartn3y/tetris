@@ -37,6 +37,12 @@ impl TetrisBoard {
         }
         return PiecePositionValidity::Valid;
     }
+
+    fn fix_piece_in_place(&mut self, piece: TetrisPiece) {
+        for coord in piece.coordinates() {
+            self.board[coord.row as usize][coord.col as usize] = true;
+        }
+    }
 }
 #[derive(Debug, PartialEq)]
 enum PiecePositionValidity {
@@ -125,7 +131,7 @@ pub enum MoveCommand {
     Clockwise,
     Anticlockwise,
 }
-#[derive(Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub struct Coord {
     pub col: i16,
     pub row: i16,
@@ -196,6 +202,22 @@ impl TetrisPiece {
             }
             MoveCommand::Down => Some(TurnEvent::EndTurn),
             _other => return None,
+        }
+    }
+    pub fn move_down(mut self, board: &mut TetrisBoard) -> Option<Self> {
+        let new_centre = Coord {
+            row: self.centre.row + 1,
+            ..self.centre
+        };
+        match board.check_is_valid_position(&self.calc_coordinates_with_centre(Some(&new_centre))) {
+            PiecePositionValidity::Valid => {
+                self.centre = new_centre;
+                return Some(self);
+            }
+            _other => {
+                board.fix_piece_in_place(self);
+                return None;
+            }
         }
     }
 }
@@ -288,6 +310,51 @@ mod tests {
             for coord in tetris_piece.coordinates() {
                 assert!(coord.col >= 0);
             }
+        }
+    }
+
+    #[test]
+    fn test_piece_moves_down_if_no_collision() {
+        let mut tetris_board = TetrisBoard::new();
+        let mut tetris_piece = TetrisPiece::new(&PieceShape::Bar);
+        let start_centre = tetris_piece.centre.clone();
+        let expected_centre = Coord {
+            row: start_centre.row + 1,
+            ..start_centre
+        };
+        tetris_piece = tetris_piece.move_down(&mut tetris_board).unwrap();
+        assert_eq!(tetris_piece.centre, expected_centre);
+    }
+
+    #[test]
+    fn test_fix_in_place_updates_board() {
+        let mut tetris_board = TetrisBoard::new();
+        let tetris_piece = TetrisPiece::new(&PieceShape::Bar);
+        let piece_centre = tetris_piece.centre.clone();
+        tetris_board.fix_piece_in_place(tetris_piece);
+        assert!(tetris_board.board[piece_centre.row as usize][piece_centre.col as usize])
+    }
+
+    #[test]
+    fn piece_is_fixed_if_down_is_collision() {
+        let mut tetris_board = TetrisBoard::new();
+        let mut tetris_piece = TetrisPiece::new(&PieceShape::Bar);
+        tetris_piece.centre = Coord { row: 0, col: 2 };
+        tetris_board.board[tetris_piece.centre.row as usize + 1]
+            [tetris_piece.centre.col as usize] = true;
+        tetris_piece.move_down(&mut tetris_board);
+        for i in 2..4 {
+            assert!(tetris_board.board[0][i as usize]);
+        }
+    }
+    #[test]
+    fn piece_is_fixed_if_down_is_end_of_board() {
+        let mut tetris_board = TetrisBoard::new();
+        let mut tetris_piece = TetrisPiece::new(&PieceShape::Bar);
+        tetris_piece.centre = Coord { row: 15, col: 2 };
+        tetris_piece.move_down(&mut tetris_board);
+        for i in 2..4 {
+            assert!(tetris_board.board[15][i as usize]);
         }
     }
 }
