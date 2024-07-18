@@ -26,7 +26,7 @@ impl TetrisBoard {
         }
         return true;
     }
-    fn check_is_valid_position(&self, coordinates: &Vec<Coord>) -> PiecePositionValidity {
+    pub fn check_is_valid_position(&self, coordinates: &Vec<Coord>) -> PiecePositionValidity {
         if !self.check_coordinates_on_board(coordinates) {
             return PiecePositionValidity::OffOfBoard;
         }
@@ -45,7 +45,7 @@ impl TetrisBoard {
     }
 }
 #[derive(Debug, PartialEq)]
-enum PiecePositionValidity {
+pub enum PiecePositionValidity {
     Valid,
     OffOfBoard,
     PieceCollision,

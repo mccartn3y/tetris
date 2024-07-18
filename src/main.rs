@@ -4,7 +4,7 @@ use std::io;
 use std::sync::mpsc;
 use std::thread;
 
-use tetris::models::{TetrisBoard, TetrisPiece, TurnEvent};
+use tetris::models::{PiecePositionValidity, TetrisBoard, TetrisPiece, TurnEvent};
 use tetris::turn_timer::turn_timer::{
     Notifier, TimerStatus, TurnTimer, TurnTimerSubscriber, TurnTimerSubscriberTrait,
 };
@@ -41,8 +41,13 @@ fn game_runner() {
     execute!(writer, LeaveAlternateScreen).unwrap();
     println!("Game Over!");
 }
-fn run_piece_loop(tetris_board: &mut TetrisBoard) -> std::io::Result<()> {
+fn run_piece_loop(tetris_board: &mut TetrisBoard) -> Result<(), ()> {
     let mut tetris_piece = TetrisPiece::new(tetris::models::PieceShape::random());
+    if let PiecePositionValidity::PieceCollision =
+        tetris_board.check_is_valid_position(&tetris_piece.coordinates())
+    {
+        return Err(());
+    }
     loop {
         CliView::draw_piece_and_board(&tetris_piece, &tetris_board).expect("Failed to draw board.");
 
