@@ -115,8 +115,9 @@ impl CommandCollector for CliCommandCollector {
                     KeyCode::Right => Ok(Some(MoveCommand::Right)),
                     KeyCode::Char('z') => Ok(Some(MoveCommand::Anticlockwise)),
                     KeyCode::Char('x') => Ok(Some(MoveCommand::Clockwise)),
+                    KeyCode::Esc => panic!("Crashing Game."), // TODO: exit more elegantly than this.
 
-                    _other => panic!("Unrecognised command!"),
+                    _other => Ok(None),
                 },
                 _other => panic!("Unrecognised command!"),
             };

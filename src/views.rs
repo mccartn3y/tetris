@@ -89,7 +89,7 @@ impl CliView {
             writer,
             cursor::MoveTo(20, 6),
             style::Print(
-                "Use the arrows to move, 'x' to rotate clockwise and 'z' to rotate anticlockise."
+                "Use the arrows to move, 'x' to rotate clockwise and 'z' to rotate anticlockise. Hit Esc to quit."
             ),
         )?;
         writer.flush()?;
