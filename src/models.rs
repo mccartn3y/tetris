@@ -14,7 +14,7 @@ impl TetrisBoard {
             board: vec![row; Self::NUM_ROWS],
         }
     }
-    fn check_coordinates_on_board(&self, coordinates: Vec<Coord>) -> bool {
+    fn check_coordinates_on_board(&self, coordinates: &Vec<Coord>) -> bool {
         for coord in coordinates {
             if coord.row < 0
                 || coord.row >= Self::NUM_ROWS as i16
@@ -26,6 +26,23 @@ impl TetrisBoard {
         }
         return true;
     }
+    fn check_is_valid_position(&self, coordinates: &Vec<Coord>) -> PiecePositionValidity {
+        if !self.check_coordinates_on_board(coordinates) {
+            return PiecePositionValidity::OffOfBoard;
+        }
+        for coord in coordinates {
+            if self.board[coord.row as usize][coord.col as usize] {
+                return PiecePositionValidity::PieceCollision;
+            }
+        }
+        return PiecePositionValidity::Valid;
+    }
+}
+#[derive(Debug, PartialEq)]
+enum PiecePositionValidity {
+    Valid,
+    OffOfBoard,
+    PieceCollision,
 }
 #[derive(Debug)]
 pub enum PieceShape {
@@ -149,7 +166,7 @@ impl TetrisPiece {
         }
         return coordinates;
     }
-    pub fn move_peice(&mut self, board: &TetrisBoard, direction: MoveCommand) {
+    pub fn move_peice(&mut self, board: &TetrisBoard, direction: MoveCommand) -> Option<TurnEvent> {
         match direction {
             MoveCommand::Right => {
                 let new_centre = Coord {
@@ -157,9 +174,12 @@ impl TetrisPiece {
                     row: self.centre.row,
                 };
                 let new_coordinates = self.calc_coordinates_with_centre(Some(&new_centre));
-                if let true = board.check_coordinates_on_board(new_coordinates) {
-                    self.centre.col += 1
+                if let PiecePositionValidity::Valid =
+                    board.check_is_valid_position(&new_coordinates)
+                {
+                    self.centre.col += 1;
                 }
+                return None;
             }
             MoveCommand::Left => {
                 let new_centre = Coord {
@@ -167,15 +187,21 @@ impl TetrisPiece {
                     row: self.centre.row,
                 };
                 let new_coordinates = self.calc_coordinates_with_centre(Some(&new_centre));
-                if let true = board.check_coordinates_on_board(new_coordinates) {
-                    self.centre.col -= 1
+                if let PiecePositionValidity::Valid =
+                    board.check_is_valid_position(&new_coordinates)
+                {
+                    self.centre.col -= 1;
                 }
+                return None;
             }
-            _other => (),
+            MoveCommand::Down => Some(TurnEvent::EndTurn),
+            _other => return None,
         }
     }
 }
-
+pub enum TurnEvent {
+    EndTurn,
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -211,6 +237,40 @@ mod tests {
                 );
             }
         }
+    }
+    #[test]
+    fn test_piece_position_validity_returns_off_board() {
+        let tetris_board = TetrisBoard::new();
+        let off_board_coords = vec![
+            vec![Coord { row: 0, col: -1 }],
+            vec![Coord { row: -1, col: 0 }],
+            vec![Coord { row: 0, col: 20 }],
+            vec![Coord { row: 20, col: 0 }],
+        ];
+        for coord in off_board_coords {
+            assert_eq!(
+                tetris_board.check_is_valid_position(&coord),
+                PiecePositionValidity::OffOfBoard
+            );
+        }
+    }
+
+    #[test]
+    fn test_piece_position_validity_returns_valid() {
+        let tetris_board = TetrisBoard::new();
+        assert_eq!(
+            tetris_board.check_is_valid_position(&vec![Coord { row: 0, col: 0 }]),
+            PiecePositionValidity::Valid
+        );
+    }
+    #[test]
+    fn test_piece_position_validity_returns_collision() {
+        let mut tetris_board = TetrisBoard::new();
+        tetris_board.board[0][0] = true;
+        assert_eq!(
+            tetris_board.check_is_valid_position(&vec![Coord { row: 0, col: 0 }]),
+            PiecePositionValidity::PieceCollision
+        );
     }
 
     #[test]
