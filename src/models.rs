@@ -139,12 +139,13 @@ impl PieceShape {
     }
 }
 #[derive(Debug)]
-pub enum MoveCommand {
-    Left,
-    Down,
-    Right,
-    Clockwise,
-    Anticlockwise,
+pub enum Command {
+    MoveLeft,
+    MoveDown,
+    MoveRight,
+    RotateClockwise,
+    RotateAnticlockwise,
+    EndGame,
 }
 #[derive(PartialEq, Debug, Clone)]
 pub struct Coord {
@@ -180,9 +181,9 @@ impl TetrisPiece {
         }
         return coordinates;
     }
-    pub fn move_peice(&mut self, board: &TetrisBoard, direction: MoveCommand) -> Option<TurnEvent> {
+    pub fn move_peice(&mut self, board: &TetrisBoard, direction: Command) -> Option<TurnEvent> {
         match direction {
-            MoveCommand::Right => {
+            Command::MoveRight => {
                 let new_centre = Coord {
                     col: self.centre.col + 1,
                     row: self.centre.row,
@@ -195,7 +196,7 @@ impl TetrisPiece {
                 }
                 return None;
             }
-            MoveCommand::Left => {
+            Command::MoveLeft => {
                 let new_centre = Coord {
                     col: self.centre.col - 1,
                     row: self.centre.row,
@@ -208,9 +209,9 @@ impl TetrisPiece {
                 }
                 return None;
             }
-            MoveCommand::Down => Some(TurnEvent::EndTurn),
-            MoveCommand::Clockwise => {
-                if let Ok(new_coordinates) = self.calc_rotated_shape(MoveCommand::Clockwise) {
+            Command::MoveDown => Some(TurnEvent::EndTurn),
+            Command::RotateClockwise => {
+                if let Ok(new_coordinates) = self.calc_rotated_shape(Command::RotateClockwise) {
                     if let PiecePositionValidity::Valid = board.check_is_valid_position(
                         &new_coordinates
                             .iter()
@@ -225,8 +226,8 @@ impl TetrisPiece {
                 }
                 return None;
             }
-            MoveCommand::Anticlockwise => {
-                if let Ok(new_coordinates) = self.calc_rotated_shape(MoveCommand::Anticlockwise) {
+            Command::RotateAnticlockwise => {
+                if let Ok(new_coordinates) = self.calc_rotated_shape(Command::RotateAnticlockwise) {
                     if let PiecePositionValidity::Valid = board.check_is_valid_position(
                         &new_coordinates
                             .iter()
@@ -241,6 +242,7 @@ impl TetrisPiece {
                 }
                 return None;
             }
+            _other => None,
         }
     }
 
@@ -260,9 +262,9 @@ impl TetrisPiece {
             }
         }
     }
-    fn calc_rotated_shape(&self, direction: MoveCommand) -> Result<Vec<Coord>, ()> {
+    fn calc_rotated_shape(&self, direction: Command) -> Result<Vec<Coord>, ()> {
         match direction {
-            MoveCommand::Clockwise => {
+            Command::RotateClockwise => {
                 let mut new_coords = vec![];
                 for coord in &self.shape {
                     new_coords.push(Coord {
@@ -272,7 +274,7 @@ impl TetrisPiece {
                 }
                 return Ok(new_coords);
             }
-            MoveCommand::Anticlockwise => {
+            Command::RotateAnticlockwise => {
                 let mut new_coords = vec![];
                 for coord in &self.shape {
                     new_coords.push(Coord {
@@ -361,13 +363,13 @@ mod tests {
         let tetris_board = TetrisBoard::new();
         let mut tetris_piece = TetrisPiece::new(&PieceShape::Bar);
         for _ in 0..20 {
-            tetris_piece.move_peice(&tetris_board, MoveCommand::Right);
+            tetris_piece.move_peice(&tetris_board, Command::MoveRight);
             for coord in tetris_piece.coordinates() {
                 assert!(coord.col < TetrisBoard::NUM_COLS as i16);
             }
         }
         for _ in 0..20 {
-            tetris_piece.move_peice(&tetris_board, MoveCommand::Left);
+            tetris_piece.move_peice(&tetris_board, Command::MoveLeft);
             for coord in tetris_piece.coordinates() {
                 assert!(coord.col >= 0);
             }
@@ -442,7 +444,7 @@ mod tests {
             ],
         ];
         for expected_shape in expected_coordiantes {
-            if let Ok(new_shape) = tetris_piece.calc_rotated_shape(MoveCommand::Clockwise) {
+            if let Ok(new_shape) = tetris_piece.calc_rotated_shape(Command::RotateClockwise) {
                 tetris_piece.shape = new_shape;
             }
             assert_eq!(expected_shape, tetris_piece.shape)
@@ -472,7 +474,7 @@ mod tests {
             ],
         ];
         for expected_shape in expected_coordiantes {
-            if let Ok(new_shape) = tetris_piece.calc_rotated_shape(MoveCommand::Anticlockwise) {
+            if let Ok(new_shape) = tetris_piece.calc_rotated_shape(Command::RotateAnticlockwise) {
                 tetris_piece.shape = new_shape;
             }
             assert_eq!(expected_shape, tetris_piece.shape)

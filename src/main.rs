@@ -1,10 +1,11 @@
 use log;
 use std::cmp;
+use std::fmt;
 use std::io;
 use std::sync::mpsc;
 use std::thread;
 
-use tetris::models::{PiecePositionValidity, TetrisBoard, TetrisPiece, TurnEvent};
+use tetris::models::{Command, PiecePositionValidity, TetrisBoard, TetrisPiece, TurnEvent};
 use tetris::turn_timer::turn_timer::{
     Notifier, TimerStatus, TurnTimer, TurnTimerSubscriber, TurnTimerSubscriberTrait,
 };
@@ -52,12 +53,12 @@ fn run_piece_loop(
     tetris_board: &mut TetrisBoard,
     turn_duration: u64,
     cli_writer: &mut CliView<io::Stdout>,
-) -> Result<u16, ()> {
+) -> Result<u16, EndGameError> {
     let mut tetris_piece = TetrisPiece::new(tetris::models::PieceShape::random());
     if let PiecePositionValidity::PieceCollision =
         tetris_board.check_is_valid_position(&tetris_piece.coordinates())
     {
-        return Err(());
+        return Err(EndGameError);
     }
     loop {
         cli_writer
@@ -85,17 +86,27 @@ fn run_piece_loop(
                 if let TimerStatus::TimerComplete = turn_timer_subscriber_1.get_timer_status() {
                     break;
                 }
-                if let Some(TurnEvent::EndTurn) = tetris_piece.move_peice(&tetris_board, recieved) {
-                    if let Err(_) = turn_event_sender.send(TurnEvent::EndTurn) {
-                        log::warn!("End turn event sent to closed turn event channel.");
-                    };
-                    break;
-                };
-                cli_writer
-                    .draw_piece_and_board(&tetris_piece, &tetris_board)
-                    .expect("Failed to draw board.");
+                match recieved {
+                    Command::EndGame => {
+                        return Err(EndGameError);
+                    }
+                    other_command => {
+                        if let Some(TurnEvent::EndTurn) =
+                            tetris_piece.move_peice(&tetris_board, other_command)
+                        {
+                            if let Err(_) = turn_event_sender.send(TurnEvent::EndTurn) {
+                                log::warn!("End turn event sent to closed turn event channel.");
+                            };
+                            break;
+                        };
+                        cli_writer
+                            .draw_piece_and_board(&tetris_piece, &tetris_board)
+                            .expect("Failed to draw board.");
+                    }
+                }
             }
-        });
+            Ok(())
+        })?;
         if let Some(out_piece) = tetris_piece.move_down(tetris_board) {
             tetris_piece = out_piece;
         } else {
@@ -103,4 +114,18 @@ fn run_piece_loop(
         }
     }
     Ok(tetris_board.clear_rows())
+}
+
+struct EndGameError;
+
+impl fmt::Display for EndGameError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Ending game.") // user-facing output
+    }
+}
+
+impl fmt::Debug for EndGameError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{{ file: {}, line: {} }}", file!(), line!()) // programmer-facing output
+    }
 }
