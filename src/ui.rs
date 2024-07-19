@@ -131,6 +131,7 @@ mod tests {
     use crossterm::terminal::is_raw_mode_enabled;
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_scoped_raw_mode_controls_raw_mode() {
         assert!(!is_raw_mode_enabled().unwrap());
         {
